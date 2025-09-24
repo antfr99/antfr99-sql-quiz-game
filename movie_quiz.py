@@ -16,7 +16,7 @@ st.set_page_config(
 
 st.title("IMDb/SQL/PYTHON Data Project 🎬")
 st.write("""
-This is a data/film project combining Python Packages (Pandas, PandasQL, Numpy , Streamlit , Sklearn , Scipy , Textblob , Matplotlib , Seaborn , Networkx ), SQL, OMDb API , AI , GitHub and IMDb.
+This is a data/film project combining Python Packages (Pandas, PandasQL, Numpy , Streamlit , Sklearn , Scipy , Textblob , Matplotlib , Seaborn , Networkx , Sentence_transformers , Requests ), SQL, OMDb API , AI , GitHub and IMDb.
 """)
 
 st.markdown("""
@@ -1152,6 +1152,8 @@ This visualization helps you explore the movie dataset’s structure and uncover
 
 
 # --- Scenario 12: Deep Learning Semantic Genre Analysis ---
+
+# --- Scenario 12: Deep Learning Semantic Genre Analysis ---
 if scenario == "Scenario 12 – Deep Learning Semantic Genre Analysis":
     st.header("Scenario 12 – Deep Learning Semantic Genre Analysis 🎬")
     st.markdown("""
@@ -1174,17 +1176,15 @@ import requests
 from sentence_transformers import SentenceTransformer, util
 import pandas as pd
 
-OMDB_API_KEY = "bcf17f38"  # Hidden in real app
+OMDB_API_KEY = "bcf17f38"
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 def fetch_movie_data(title):
     url = f"http://www.omdbapi.com/?t={title}&apikey={OMDB_API_KEY}&plot=full"
     response = requests.get(url).json()
-    return {
-        "Title": response.get("Title"),
-        "Plot": response.get("Plot"),
-        "Genre": response.get("Genre")
-    }
+    plot = response.get("Plot") or "Plot missing"
+    genres = response.get("Genre").split(", ") if response.get("Genre") else ["Unknown"]
+    return {"Title": response.get("Title"), "Plot": plot, "Genre": genres}
         """, language="python")
 
     # --- Run Button ---
@@ -1203,54 +1203,56 @@ def fetch_movie_data(title):
             }
 
             movies = director_movies.get(selected_director, [])
+            if not movies:
+                st.warning(f"No movies found for {selected_director}")
+            else:
+                # Load model
+                from sentence_transformers import SentenceTransformer, util
+                model = SentenceTransformer("all-MiniLM-L6-v2")
 
-            # Load sentence transformer model (PyTorch)
-            from sentence_transformers import SentenceTransformer, util
-            model = SentenceTransformer("all-MiniLM-L6-v2")
+                results = []
 
-            results = []
+                for title in movies:
+                    url = f"http://www.omdbapi.com/?t={title}&apikey={OMDB_API_KEY}&plot=full"
+                    response = requests.get(url).json()
 
-            for title in movies:
-                url = f"http://www.omdbapi.com/?t={title}&apikey={OMDB_API_KEY}&plot=full"
-                response = requests.get(url).json()
+                    # Fallbacks
+                    plot = response.get("Plot") or "Plot missing"
+                    genres = response.get("Genre").split(", ") if response.get("Genre") else ["Unknown"]
 
-                plot = response.get("Plot", "")
-                genres = response.get("Genre", "").split(", ") if response.get("Genre") else []
+                    print(f"Processing {title}: Plot length={len(plot)}, Genres={genres}")  # Debug
 
-                if not plot or not genres:
-                    continue
+                    # Encode plot
+                    plot_embedding = model.encode(plot, convert_to_tensor=True)
 
-                # Encode plot
-                plot_embedding = model.encode(plot, convert_to_tensor=True)
+                    # Compute similarity with each genre
+                    similarities = {}
+                    for g in genres:
+                        g_embedding = model.encode(g, convert_to_tensor=True)
+                        sim = util.cos_sim(plot_embedding, g_embedding).item()
+                        similarities[g] = round(sim, 3)
 
-                # Compute similarity with each genre
-                similarities = {}
-                for g in genres:
-                    g_embedding = model.encode(g, convert_to_tensor=True)
-                    sim = util.cos_sim(plot_embedding, g_embedding).item()
-                    similarities[g] = round(sim, 3)
+                    # Pick the genre with highest similarity
+                    main_genre = max(similarities, key=similarities.get) if similarities else "Unknown"
 
-                # Pick the genre with highest similarity
-                main_genre = max(similarities, key=similarities.get) if similarities else "N/A"
+                    results.append({
+                        "Film": response.get("Title") or title,
+                        "Plot": plot[:200] + "..." if len(plot) > 200 else plot,
+                        "OMDb Genres": ", ".join(genres),
+                        "Embedding Similarity": similarities,
+                        "Main Genre (Predicted)": main_genre
+                    })
 
-                results.append({
-                    "Film": response.get("Title"),
-                    "Plot": plot[:200] + "..." if len(plot) > 200 else plot,
-                    "OMDb Genres": ", ".join(genres),
-                    "Embedding Similarity": similarities,
-                    "Main Genre (Predicted)": main_genre
-                })
+                df_results = pd.DataFrame(results)
 
-            df_results = pd.DataFrame(results)
+                st.success(f"Analysis complete for {selected_director} ✅")
+                st.dataframe(df_results, use_container_width=True)
 
-        st.success(f"Analysis complete for {selected_director} ✅")
-        st.dataframe(df_results, use_container_width=True)
-
-        st.markdown("""
-        **Explanation:**  
-        - Each **plot** is converted into a vector (embedding).  
-        - Each **genre label** is also converted into a vector.  
-        - We measure **cosine similarity** (0 to 1) between plot and genre embeddings.  
-        - The genre with the **highest similarity** is predicted as the **main genre**.  
-        - This helps refine cases where OMDb lists multiple genres, by predicting the most semantically relevant one.
-        """)
+                st.markdown("""
+                **Explanation:**  
+                - Each **plot** is converted into a vector (embedding).  
+                - Each **genre label** is also converted into a vector.  
+                - We measure **cosine similarity** (0 to 1) between plot and genre embeddings.  
+                - The genre with the **highest similarity** is predicted as the **main genre**.  
+                - This helps refine cases where OMDb lists multiple genres, by predicting the most semantically relevant one.
+                """)
