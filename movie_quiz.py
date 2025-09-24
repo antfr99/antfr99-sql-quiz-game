@@ -1150,93 +1150,100 @@ This visualization helps you explore the movie dataset’s structure and uncover
 
 # --- Scenario 12  ---
 
-import streamlit as st
-import pandas as pd
+# --- Scenario 12: Deep Learning Semantic Genre Analysis ---
+if scenario == "Scenario 12 – Deep Learning Semantic Genre Analysis":
+    st.header("Scenario 12 – Deep Learning Semantic Genre Analysis 🎬")
+    st.markdown("""
+    In this scenario, we use **deep learning sentence embeddings** to analyze movie plots.  
+    The goal: identify the **main genre** by comparing the semantic meaning of the plot  
+    with the genres provided by OMDb.
+    """)
+
+    # --- Director Filter (single-select) ---
+    directors = ["Stanley Kubrick", "Steven Spielberg", "Martin Scorsese", "Christopher Nolan", "Ridley Scott"]
+    selected_director = st.selectbox("Choose a director:", directors, index=0)
+
+    # --- Grey Block with Hidden API key ---
+    with st.expander("🔑 Show Code to Fetch & Analyze Data", expanded=False):
+        st.code("""
 import requests
 from sentence_transformers import SentenceTransformer, util
+import pandas as pd
 
-# --- Load embedding model (small + fast) ---
-@st.cache_resource
-def load_model():
-    return SentenceTransformer("all-MiniLM-L6-v2")
+OMDB_API_KEY = "YOUR_KEY"  # Hidden in real app
+model = SentenceTransformer("all-MiniLM-L6-v2")
 
-model = load_model()
+def fetch_movie_data(title):
+    url = f"http://www.omdbapi.com/?t={title}&apikey={OMDB_API_KEY}&plot=full"
+    response = requests.get(url).json()
+    return {
+        "Title": response.get("Title"),
+        "Plot": response.get("Plot"),
+        "Genre": response.get("Genre")
+    }
 
-# --- OMDb Fetch Helper ---
-def fetch_movie_data(title, api_key="YOUR_OMDB_API_KEY"):
-    url = f"http://www.omdbapi.com/?t={title}&apikey={api_key}&plot=short"
-    r = requests.get(url)
-    if r.status_code == 200:
-        return r.json()
-    return None
+# Example usage:
+# data = fetch_movie_data("2001: A Space Odyssey")
+# plot_embedding = model.encode(data["Plot"], convert_to_tensor=True)
+        """, language="python")
 
-# --- Kubrick films after 1960 ---
-kubrick_movies = [
-    "Spartacus",                # 1960
-    "Lolita",                   # 1962
-    "Dr. Strangelove",          # 1964
-    "2001: A Space Odyssey",    # 1968
-    "A Clockwork Orange",       # 1971
-    "Barry Lyndon",             # 1975
-    "The Shining",              # 1980
-    "Full Metal Jacket",        # 1987
-    "Eyes Wide Shut"            # 1999
-]
+    # --- Run Button ---
+    if st.button("Run Deep Learning Genre Analysis"):
+        with st.spinner(f"Fetching films for {selected_director}..."):
 
-# --- Streamlit UI ---
-st.title("🎬 Scenario 12 – Kubrick Genre Inference with Embeddings")
+            # For demo purposes, hardcode some movies (later can automate from IMDb file)
+            director_movies = {
+                "Stanley Kubrick": ["2001: A Space Odyssey", "The Shining", "A Clockwork Orange"],
+                "Steven Spielberg": ["Jaws", "E.T. the Extra-Terrestrial", "Jurassic Park"],
+                "Martin Scorsese": ["Goodfellas", "Taxi Driver", "The Irishman"],
+                "Christopher Nolan": ["Inception", "Interstellar", "Dunkirk"],
+                "Ridley Scott": ["Alien", "Blade Runner", "Gladiator"]
+            }
 
-st.markdown("""
-This scenario fetches **Stanley Kubrick films (post-1960)** from OMDb, 
-compares their **plot embeddings** to genre labels, 
-and suggests a **main genre**.
-""")
+            movies = director_movies.get(selected_director, [])
 
-# Hide API key input from display
-api_key = st.text_input("Enter your OMDb API Key:", type="password")
+            results = []
+            model = SentenceTransformer("all-MiniLM-L6-v2")
 
-if st.button("Run Kubrick Analysis"):
-    if not api_key:
-        st.warning("Please enter your OMDb API Key")
-    else:
-        rows = []
-        for title in kubrick_movies:
-            data = fetch_movie_data(title, api_key)
-            if data and data.get("Response") == "True":
-                plot = data.get("Plot", "")
-                genres = data.get("Genre", "")
-                genre_list = [g.strip() for g in genres.split(",")] if genres else []
+            for title in movies:
+                url = f"http://www.omdbapi.com/?t={title}&apikey={OMDB_API_KEY}&plot=full"
+                response = requests.get(url).json()
 
-                # Embed plot + genres
-                plot_emb = model.encode(plot, convert_to_tensor=True)
-                genre_embs = model.encode(genre_list, convert_to_tensor=True)
+                plot = response.get("Plot", "")
+                genres = response.get("Genre", "").split(", ") if response.get("Genre") else []
 
-                # Similarity: plot ↔ each genre
-                sims = util.pytorch_cos_sim(plot_emb, genre_embs).flatten().tolist()
+                if not plot or not genres:
+                    continue
 
-                # Pick highest similarity
-                if sims and genre_list:
-                    best_idx = sims.index(max(sims))
-                    best_genre = genre_list[best_idx]
-                    best_score = round(sims[best_idx], 3)
-                else:
-                    best_genre, best_score = "N/A", 0
+                plot_embedding = model.encode(plot, convert_to_tensor=True)
 
-                rows.append({
-                    "Film": title,
-                    "Plot": plot,
-                    "OMDb Genres": genres,
-                    "Embedding Similarity": best_score,
-                    "Main Genre (by embedding)": best_genre
+                # Compute similarity with genre names
+                similarities = {}
+                for g in genres:
+                    g_embedding = model.encode(g, convert_to_tensor=True)
+                    sim = util.cos_sim(plot_embedding, g_embedding).item()
+                    similarities[g] = sim
+
+                # Pick the genre with highest similarity
+                main_genre = max(similarities, key=similarities.get)
+
+                results.append({
+                    "Film": response.get("Title"),
+                    "Plot": plot[:200] + "...",  # shortened for table
+                    "OMDb Genres": ", ".join(genres),
+                    "Embedding Similarity": similarities,
+                    "Main Genre (Predicted)": main_genre
                 })
 
-        df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True)
+            df_results = pd.DataFrame(results)
+
+        st.success(f"Analysis complete for {selected_director} ✅")
+        st.dataframe(df_results, use_container_width=True)
 
         st.markdown("""
-        ### Explanation of Embedding Similarity
-        - The **plot** is converted into a vector (embedding).
-        - Each **genre label** is also converted into a vector.
-        - We measure **cosine similarity** (0 to 1).
-        - The **highest score** = the genre most semantically aligned with the plot.
+        **Explanation:**  
+        - We embed the **plot text** and each **genre label** into a vector space.  
+        - The genre whose embedding is **closest (highest cosine similarity)** to the plot embedding  
+          is chosen as the **main genre**.  
+        - This helps refine cases where OMDb lists multiple genres, by predicting the most semantically relevant one.
         """)
