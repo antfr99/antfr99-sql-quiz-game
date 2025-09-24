@@ -1249,10 +1249,10 @@ def fetch_movie_data(title):
 
                     results.append({
                         "Film": movie_data["Title"],
-                        "Plot": plot[:200] + "..." if len(plot) > 200 else plot,
                         "OMDb Genres": ", ".join(genres),
                         "Embedding Similarity": similarities,
-                        "Main Genre (Predicted)": main_genre
+                        "Main Genre (Predicted)": main_genre,
+                        "Plot": plot[:200] + "..." if len(plot) > 200 else plot
                     })
 
                 df_results = pd.DataFrame(results)
