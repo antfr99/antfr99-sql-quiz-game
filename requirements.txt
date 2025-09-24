@@ -13,3 +13,6 @@ seaborn
 lightgbm
 networkx
 shap
+pyvis
+requests
+sentence_transformers
