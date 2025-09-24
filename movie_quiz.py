@@ -1151,8 +1151,8 @@ This visualization helps you explore the movie dataset’s structure and uncover
 # --- Scenario 12  ---
 
 # --- Scenario 12: Deep Learning Semantic Genre Analysis (Pre-fetched Data) ---
-if scenario == "Scenario 12 – Deep Learning Semantic Genre Analysis":
-    st.header("Scenario 12 – Deep Learning Semantic Genre Analysis 🎬")
+if scenario == "Scenario 12 – Semantic Genre & Recommendations (Deep Learning / NLP)":
+    st.header("Scenario 12 – Semantic Genre & Recommendations (Deep Learning / NLP)")
     st.markdown("""
     This scenario predicts the **main genre** of films using semantic similarity of plot embeddings.  
     The table shows:
