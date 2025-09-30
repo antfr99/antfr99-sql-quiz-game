@@ -9,20 +9,19 @@ import lightgbm as lgb
 import numpy as np
 import logging
 import os
-from lime.lime_tabular import LimeTabularExplainer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.neighbors import NearestNeighbors
 
 
 # --- Page Config ---
 st.set_page_config(
-    layout="centered",
+    layout="wide",
     page_title="IMDb/SQL/PYTHON Data Project 🎬"
 )
 
 st.title("IMDb/SQL/PYTHON Data Project 🎬")
 st.write("""
-This is an experimental project that integrates several Python libraries, including Pandas, PandasQL, NumPy, Streamlit, Scikit-learn, SciPy, TextBlob, Matplotlib, Seaborn, NetworkX, Sentence-Transformers, Requests, and Lime. It also incorporates SQL, the OMDb API, AI, GitHub, and IMDb.
+This is an experimental project that integrates several Python libraries, including Pandas, PandasQL, NumPy, Streamlit, Scikit-learn, SciPy, TextBlob, Matplotlib, Seaborn, NetworkX, Sentence-Transformers and Requests. It also incorporates SQL, the OMDb API, AI, GitHub, and IMDb.
 """)
 
 st.markdown("""
@@ -76,10 +75,14 @@ if not IMDB_Ratings.empty:
 else:
     st.warning("IMDb Ratings table is empty or failed to load.")
 
-st.write("---")
 st.write("### My Ratings Table")
 if not My_Ratings.empty:
-    st.dataframe(My_Ratings, width="stretch", height=400)
+    My_Ratings['Year_Sort'] = pd.to_numeric(My_Ratings['Year'], errors='coerce')
+    My_Ratings_sorted = My_Ratings.sort_values(by="Year_Sort", ascending=False)
+        # Rename column only for display
+    display_ratings = My_Ratings_sorted.rename(columns={"Your Rating": "My Ratings"})
+    display_ratings = display_ratings.drop(columns=['Year_Sort'])
+    st.dataframe(display_ratings, width="stretch", height=400)
 else:
     st.warning("My Ratings table is empty or failed to load.")
 
@@ -91,20 +94,17 @@ scenario = st.radio(
         "Scenario 1 – Highlight Disagreements (SQL)",
         "Scenario 2 – Hybrid Recommendations (SQL)",
         "Scenario 3 – Top Unseen Films by Decade (SQL)",
-        "Scenario 4 – Predict My Ratings (ML)",
-        "Scenario 5 – Statistical Insights by Genre (Agreement)",
-        "Scenario 6 – Statistical Insights by Director (t-test)",
-        "Scenario 7 – Review Analysis (Sentiment, Subjectivity)",
-        "Scenario 8 – Model Evaluation (Feature Importance)",
-        "Scenario 9 – Poster Image Analysis (API)",
-        "Scenario 10 – Feature Hypothesis Testing",
-        "Scenario 11 – Graph Based Movie Relationships",
+        "Scenario 4 – Statistical Insights by Genre (Agreement)",
+        "Scenario 5 – Statistical Insights by Director (t-test)",
+        "Scenario 6 – Review Analysis (Sentiment, Subjectivity)",
+        "Scenario 7 – Poster Image Analysis (OMDb API)",
+        "Scenario 8 – Graph Based Movie Relationships",
+        "Scenario 9 – Predict My Ratings (ML)", 
+        "Scenario 10 – Model Evaluation (Feature Importance)",
+        "Scenario 11 – Feature Hypothesis Testing",
         "Scenario 12 – Semantic Genre & Recommendations (Deep Learning / NLP)",
-        "Scenario 13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)",
-        "Scenario 14 – Network Influence Analysis: Identify Key Actor-Director Connections in My Top 100 Personal Films",
-        "Scenario 15 – Counterfactual Analysis (1960s–70s Infamous Sci-Fi with Modern Directors & Budgets)",
-        "Scenario 16 – Collaborative Filtering: Recommend Genres/Directors Based on My Personal High Ratings"
-        
+        "Scenario 13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)",      
+                
     ]
 )
 
@@ -113,12 +113,12 @@ scenario = st.radio(
 
 # --- Scenario 1: SQL Playground ---
 if scenario == "Scenario 1 – Highlight Disagreements (SQL)":
-    st.markdown('<h3 style="color:green;">Scenario 1 (My Ratings vs IMDb)</h3>', unsafe_allow_html=True)
+    st.header("Scenario 1 – Highlight Disagreements (SQL)")
     st.write("Movies where my rating differs from IMDb by more than 2 points.")
 
     default_query_1 = """SELECT 
        pr.Title,
-       pr.[Your Rating],
+       pr.[Your Rating] AS [My Rating],
        ir.[IMDb Rating],
        ABS(CAST(pr.[Your Rating] AS FLOAT) - CAST(ir.[IMDb Rating] AS FLOAT)) AS Rating_Diff,
        CASE 
@@ -142,7 +142,7 @@ LIMIT 1000;"""
 
 # --- Scenario 2: SQL Playground ---
 if scenario == "Scenario 2 – Hybrid Recommendations (SQL)":
-    st.markdown('<h3 style="color:green;">Scenario 2 (Recommend Unseen Movies)</h3>', unsafe_allow_html=True)
+    st.header("Scenario 2 – Hybrid Recommendations (SQL)")
     st.write("""
     Recommend movies I haven't seen yet with a bonus point system:  
     - Director I liked before → +1 point  
@@ -180,7 +180,7 @@ LIMIT 10000;"""
 
 # --- Scenario 3: SQL Playground ---
 if scenario == "Scenario 3 – Top Unseen Films by Decade (SQL)":
-    st.markdown('<h3 style="color:green;">Scenario 3 (Decade Discovery – Top Unseen Films)</h3>', unsafe_allow_html=True)
+    st.header("Scenario 3 – Top Unseen Films by Decade (SQL)")
     st.write("""
     Shows the highest-rated unseen films grouped by decade.  
     Uses Python deduplication and limits results to the top 20 per decade.
@@ -225,9 +225,9 @@ ORDER BY Decade, [IMDb Rating] DESC, [Num Votes] DESC;
 
 
 
-# --- Scenario 4: Python ML ---
-if scenario == "Scenario 4 – Predict My Ratings (ML)":
-    st.markdown('<h3 style="color:green;">Scenario 4 (Predict My Ratings – ML):</h3>', unsafe_allow_html=True)
+# --- Scenario 9: Python ML ---
+if scenario == "Scenario 9 – Predict My Ratings (ML)":
+    st.header("Scenario 9 – Predict My Ratings (ML)")
     st.write("""
     Predict my ratings for unseen movies using a machine learning model.
 
@@ -305,9 +305,9 @@ predict_df
 
 
 
-# --- Scenario 5: Statistical Insights ---
-if scenario == "Scenario 5 – Statistical Insights by Genre (Agreement)":
-    st.markdown('<h3 style="color:green;">Scenario 5 (Agreement % per Genre):</h3>', unsafe_allow_html=True)
+# --- Scenario 4: Statistical Insights ---
+if scenario == "Scenario 4 – Statistical Insights by Genre (Agreement)":
+    st.header("Scenario 4 – Statistical Insights by Genre (Agreement)")
     st.write("""
     This analysis measures how often my ratings align with IMDb ratings **within a tolerance band of ±1 point**.  
     Results are grouped by genre, showing agreements, disagreements, and overall percentages.
@@ -363,11 +363,11 @@ genre_agreement.sort_values(by='Agreement_%', ascending=False)
 
 
 
-# --- Scenario 6: Statistical Insights (t-test per Director) ---
 
-# --- Scenario 6: Statistical Insights (t-test per Director) ---
-if scenario == "Scenario 6 – Statistical Insights by Director (t-test)":
-    st.markdown('<h3 style="color:green;">Scenario 6 (t-test per Director)</h3>', unsafe_allow_html=True)
+
+# --- Scenario 5: Statistical Insights (t-test per Director) ---
+if scenario == "Scenario 5 – Statistical Insights by Director (t-test)":
+    st.header("Scenario 5 – Statistical Insights by Director (t-test)")
     st.write("""
 This analysis compares my ratings with IMDb ratings on a director-by-director basis using a **paired t-test**.  
 The test checks whether the differences between my ratings and IMDb’s are statistically significant for each director.  
@@ -444,15 +444,15 @@ df_results = df_results.sort_values(by="p_value")
 
 
 
-# --- Remove subprocess and sys imports related to runtime download ---
+# --- SCENARIO 6 ---
 
 from textblob import TextBlob
 import pandas as pd
 import streamlit as st
 
 
-if scenario == "Scenario 7 – Review Analysis (Sentiment, Subjectivity)":
-    st.header("Scenario 7 — Film Review Analysis - Mother! (2017)")
+if scenario == "Scenario 6 – Review Analysis (Sentiment, Subjectivity)":
+    st.header("Scenario 6 – Review Analysis (Sentiment, Subjectivity)")
 
     # --- Short explanation ---
     st.markdown("""
@@ -513,14 +513,15 @@ This is a phenomenal film, full of details, full of symbolism and references to 
 I have never watch a movie about it :).Dont try to learn something about the film before watching. Actually, it tells very good the whole life, and theatral aspect was wonderful in the movie. I strongly suggest that movie but, first, you have to leave your superstitions and prejudice . Just watch as an art and movie. But this movie, is not for superhero lovers and childs.
     """
 
-    # --- Convert multi-line text to list of reviews ---
-    reviews = [r.strip() for r in reviews_text.split("\n\n") if r.strip()]
-
-    # --- Show code block first ---
-    review_code = '''
+    # --- Full editable code block for this scenario ---
+    review_code = f'''
 from textblob import TextBlob
 import pandas as pd
 
+# --- Reviews input ---
+reviews_text = """{reviews_text.strip()}"""
+
+# Convert multi-line text to list of reviews
 reviews = [r.strip() for r in reviews_text.split("\\n\\n") if r.strip()]
 
 review_records = []
@@ -538,89 +539,81 @@ for review in reviews:
     if not snippet:
         continue
 
-    review_records.append({
+    review_records.append({{
         "ReviewID": review_counter,
         "Words": len(words),
         "Sentiment": round(sentiment, 3),
         "Subjectivity": round(subjectivity, 3),
         "Snippet": snippet + ("..." if len(review) > 500 else "")
-    })
+    }})
     review_counter += 1
 
 df_reviews = pd.DataFrame(review_records)
 df_reviews.reset_index(drop=True, inplace=True)
 df_reviews['ReviewID'] = df_reviews.index + 1
 '''
-    st.subheader("Scenario 7 Code")
-    st.code(review_code, language="python")
 
-    # --- Button below grey block ---
-    if st.button("Run Sentiment Analysis"):
-        review_records = []
-        review_counter = 1
-        for review in reviews:
-            words = review.split()
-            if len(words) < 5:
-                continue
-            tb = TextBlob(review)
-            sentiment = tb.sentiment.polarity
-            subjectivity = tb.sentiment.subjectivity
-            snippet = review[:500].strip()
-            if not snippet:
-                continue
-            review_records.append({
-                "ReviewID": review_counter,
-                "Words": len(words),
-                "Sentiment": round(sentiment, 3),
-                "Subjectivity": round(subjectivity, 3),
-                "Snippet": snippet + ("..." if len(review) > 500 else "")
-            })
-            review_counter += 1
+    # --- Editable code input (like Scenario 5) ---
+    user_review_code = st.text_area(
+        "Python Review Sentiment Code (editable)",
+        review_code,
+        height=700
+    )
 
-        df_reviews = pd.DataFrame(review_records)
-        df_reviews.reset_index(drop=True, inplace=True)
-        df_reviews['ReviewID'] = df_reviews.index + 1
+    # --- Run button ---
+    if st.button("Run Sentiment Analysis", key="run_sentiment6"):
+        try:
+            local_vars = {}
+            exec(user_review_code, {}, local_vars)
 
-        st.subheader("Reviews Overview")
-        st.dataframe(df_reviews, width="stretch", height=400)
+            if "df_reviews" in local_vars:
+                df_reviews = local_vars["df_reviews"]
 
-        st.subheader("Aggregate Insights")
-        st.write(f"**Average sentiment:** {df_reviews['Sentiment'].mean():.3f}")
-        st.write(f"**Average subjectivity:** {df_reviews['Subjectivity'].mean():.3f}")
+                st.subheader("Reviews Overview")
+                st.dataframe(df_reviews, width="stretch", height=400)
 
-        st.markdown("""
-        **What these metrics mean:**
-        - **Sentiment**: ranges from -1 (negative) to +1 (positive).  
-        - **Subjectivity**: ranges from 0 (objective) to 1 (subjective/opinionated).  
-        - **Snippet**: first 500 characters of the review.  
-        """)
+                st.subheader("Aggregate Insights")
+                st.write(f"**Average sentiment:** {df_reviews['Sentiment'].mean():.3f}")
+                st.write(f"**Average subjectivity:** {df_reviews['Subjectivity'].mean():.3f}")
 
-        st.markdown("""
-        ---
-        **How TextBlob works (in simple terms):**  
-        - TextBlob uses a built-in **lexicon** (a dictionary of words) where each word has a sentiment score  
-          (e.g., *"great"* → +0.8, *"boring"* → -0.6).  
-        - When it processes a review, it breaks the text into words and phrases, looks them up in the lexicon,  
-          and then averages the scores to estimate overall **sentiment**.  
-        - For **subjectivity**, it checks how opinion-based the words are. Words like *"amazing"* or *"terrible"*  
-          are subjective, while factual words like *"movie length"* are objective.  
-        - The result is a quick, automated way of measuring tone and bias without needing manual labeling.  
+                st.markdown("""
+                **What these metrics mean:**
+                - **Sentiment**: ranges from -1 (negative) to +1 (positive).  
+                - **Subjectivity**: ranges from 0 (objective) to 1 (subjective/opinionated).  
+                - **Snippet**: first 500 characters of the review.  
+                """)
 
-        ⚠️ **Note:** TextBlob is rule-based and doesn’t “understand” context deeply.  
-        For example, sarcasm or irony might confuse it (e.g., *"What a masterpiece..."* said negatively will still be read as **positive**). 
-        """)
+                st.markdown("""
+                ---
+                **How TextBlob works (in simple terms):**  
+                - TextBlob uses a built-in **lexicon** (a dictionary of words) where each word has a sentiment score  
+                  (e.g., *"great"* → +0.8, *"boring"* → -0.6).  
+                - When it processes a review, it breaks the text into words and phrases, looks them up in the lexicon,  
+                  and then averages the scores to estimate overall **sentiment**.  
+                - For **subjectivity**, it checks how opinion-based the words are. Words like *"amazing"* or *"terrible"*  
+                  are subjective, while factual words like *"movie length"* are objective.  
+                - The result is a quick, automated way of measuring tone and bias without needing manual labeling.  
 
+                ⚠️ **Note:** TextBlob is rule-based and doesn’t “understand” context deeply.  
+                For example, sarcasm or irony might confuse it (e.g., *"What a masterpiece..."* said negatively will still be read as **positive**). 
+                """)
+
+                # --- Full reviews ---
+                st.markdown("---")
+                with st.expander("Full Reviews (click to expand)"):
+                    for r in local_vars["reviews"]:
+                        if len(r.split()) >= 5:
+                            st.markdown(f"<div style='color:gray; padding:5px;'>{r}</div>", unsafe_allow_html=True)
+            else:
+                st.warning("No dataframe named 'df_reviews' was produced. Please check your code.")
+
+        except Exception as e:
+            st.error(f"Error running sentiment analysis: {e}")
 
 
-        # --- Full reviews ---
-        st.markdown("---")
-        with st.expander("Full Reviews (click to expand)"):
-            for r in reviews:
-                if len(r.split()) >= 5:
-                    st.markdown(f"<div style='color:gray; padding:5px;'>{r}</div>", unsafe_allow_html=True)
 
 
-# --- Scenario 8---
+# --- Scenario 11---
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -628,8 +621,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # --- Scenario 8 ---
-if scenario == "Scenario 8 – Model Evaluation (Feature Importance)":
-    st.header("Scenario 8 – Model Evaluation: Feature Importance")
+if scenario == "Scenario 10 – Model Evaluation (Feature Importance)":
+    st.header("Scenario 10 – Model Evaluation: Feature Importance")
 
     st.write("""
     We analyze which features matter most for predicting **my movie ratings** using a Random Forest model.  
@@ -638,13 +631,13 @@ if scenario == "Scenario 8 – Model Evaluation (Feature Importance)":
     - Higher score → stronger influence on predictions.  
     - Lower score → weaker influence.  
 
-    *(Requires a trained model from Scenario 4.)*
+    *(Requires a trained model from Scenario 9.)*
     """)
 
     # --- Retrain model if not in session ---
     if 'model' not in st.session_state:
-        st.warning("Model not found. Run Scenario 4 first or retrain here.")
-        if st.button("Run Scenario 4 Training Now"):
+        st.warning("Model not found. Retrain here.")
+        if st.button("Run Scenario 9 ( Predit My Ratings ) Training Now"):
             from sklearn.preprocessing import OneHotEncoder
             from sklearn.ensemble import RandomForestRegressor
             from sklearn.compose import ColumnTransformer
@@ -749,112 +742,12 @@ if scenario == "Scenario 8 – Model Evaluation (Feature Importance)":
         """)
 
 
-# --- Scenario 9: Poster Analysis ---
-if scenario == "Scenario 9 – Poster Image Analysis (API)":
-    st.markdown("### Scenario 9 – Poster Image & Mood Analysis")
-    st.write("Select a movie, then click **Fetch Poster** to display the poster and an easy-to-understand analysis.")
-
-    # --- Show code in grey block ---
-    poster_code = '''
-
-import requests
-from PIL import Image
-import numpy as np
-from sklearn.cluster import KMeans
-
-imdb_id = IMDB_Ratings.loc[IMDB_Ratings['Title'] == selected_film, 'Movie ID'].values[0]
-url = f"http://www.omdbapi.com/?i={imdb_id}&apikey={OMDB_API_KEY}"
-response = requests.get(url).json()
-poster_url = response.get('Poster')
-
-img = Image.open(requests.get(poster_url, stream=True).raw).convert("RGB")
-img_small = img.resize((150, 150))
-img_array = np.array(img_small).reshape(-1, 3)
-
-kmeans = KMeans(n_clusters=3, random_state=42).fit(img_array)
-dominant_colors = kmeans.cluster_centers_
-'''
-    st.code(poster_code, language="python")
-
-    # --- Hidden API key ---
-    OMDB_API_KEY = "bcf17f38"  # hard-coded, hidden
-
-    # --- Select a movie ---
-    film_list = IMDB_Ratings['Title'].dropna().unique().tolist()
-    selected_film = st.selectbox("Select a movie to analyze poster:", film_list)
-
-    # --- Button ---
-    if st.button("Fetch Poster & Analyze"):
-        if selected_film:
-            import requests
-            from PIL import Image
-            import numpy as np
-            from sklearn.cluster import KMeans
-
-            # Get IMDb ID
-            imdb_id = IMDB_Ratings.loc[IMDB_Ratings['Title'] == selected_film, 'Movie ID'].values[0]
-
-            # Fetch poster from OMDb
-            url = f"http://www.omdbapi.com/?i={imdb_id}&apikey={OMDB_API_KEY}"
-            response = requests.get(url).json()
-            poster_url = response.get('Poster')
-
-            if poster_url and poster_url != "N/A":
-                st.image(poster_url, width=300)
-
-                # --- Extract poster features ---
-                img = Image.open(requests.get(poster_url, stream=True).raw).convert("RGB")
-                img_small = img.resize((150, 150))
-                img_array = np.array(img_small).reshape(-1, 3)
-
-                # Find dominant colors
-                kmeans = KMeans(n_clusters=3, random_state=42).fit(img_array)
-                dominant_colors = kmeans.cluster_centers_
-
-                st.write("🎨 Dominant Colors:")
-                cols = st.columns(len(dominant_colors))
-                for idx, color in enumerate(dominant_colors.astype(int)):
-                    hex_color = '#%02x%02x%02x' % tuple(color)
-                    cols[idx].markdown(
-                        f"<div style='width:60px; height:60px; background:{hex_color}; border-radius:8px; border:1px solid #000'></div>",
-                        unsafe_allow_html=True,
-                    )
-
-                # Brightness feature
-                brightness = np.mean(img_array)
-                if brightness < 100:
-                    mood = "dark and moody"
-                    cluster_name = "Cluster 0 – Thriller / Horror style"
-                    mood_tag = "🌑 Dark Thriller vibes"
-                elif brightness < 170:
-                    mood = "balanced"
-                    cluster_name = "Cluster 1 – Drama / Realistic style"
-                    mood_tag = "🎭 Dramatic tone"
-                else:
-                    mood = "bright and vivid"
-                    cluster_name = "Cluster 2 – Comedy / Family style"
-                    mood_tag = "😂 Lighthearted & Fun"
-
-                # Human-friendly explanation
-                st.success(f"🎬 Poster assigned to: **{cluster_name}**")
-                st.info(
-                    f"The poster looks **{mood}**, with the main colors shown above. "
-                    f"This suggests the movie has **{cluster_name.split('–')[1].strip()}**.\n\n"
-                    f"👉 Mood tag: **{mood_tag}**"
-                )
-            else:
-                st.warning("Poster not found.")
-
-
-# --- Scenario 10: Feature Hypothesis Testing ---
 
 
 
-# --- Scenario 10: Feature Hypothesis Testing ---
-
-# --- Scenario 10: Feature Hypothesis Testing ---
-if scenario == "Scenario 10 – Feature Hypothesis Testing":
-    st.header("Scenario 10 – Feature Hypothesis Testing & Predictions")
+# --- Scenario 11: Feature Hypothesis Testing ---
+if scenario == "Scenario 11 – Feature Hypothesis Testing":
+    st.header("Scenario 11 – Feature Hypothesis Testing & Predictions")
 
     st.markdown("""
     Select features to test if they **improve model predictions** for your ratings.
@@ -1040,9 +933,12 @@ if scenario == "Scenario 10 – Feature Hypothesis Testing":
         - RMSE increase + p-value < 0.05 → features worsen predictions.
         - p-value ≥ 0.05 → no significant change.
         """)
-# --- Scenario 11: Graph-Based Movie Relationships ---
-if scenario == "Scenario 11 – Graph Based Movie Relationships":
-    st.markdown('<h3 style="color:green;">Scenario 11 (Graph Nodes & Edges):</h3>', unsafe_allow_html=True)
+
+
+
+# --- Scenario 8: Graph-Based Movie Relationships ---
+if scenario == "Scenario 8 – Graph Based Movie Relationships":
+    st.header("Scenario 8 – Graph-Based Movie Relationships")
     st.write("""
     This scenario models the dataset as a **graph**:
     - **Nodes**: Movies, Directors, Genres  
@@ -1060,7 +956,7 @@ if scenario == "Scenario 11 – Graph Based Movie Relationships":
 
     # --- Default Selections ---
     default_year = "All"
-    default_genre = "Comedy"
+    default_genre = "Drama"
     default_director = [d for d in ["Alfred Hitchcock", "Stanley Kubrick", "Francis Ford Coppola"] if d in directors]
 
     selected_year = st.selectbox(
@@ -1160,7 +1056,108 @@ This visualization helps you explore the movie dataset’s structure and uncover
             st.error(f"Error running Graph Analysis code: {e}")
 
 
-# --- Scenario 12: Deep Learning Semantic Genre Analysis ---
+
+
+# --- Scenario 7 Poster Analysis ---
+if scenario == "Scenario 7 – Poster Image Analysis (OMDb API)":
+    st.header("Scenario 7 – Poster Image & Mood Analysis")
+    st.markdown("""
+    Select a movie, then click **Fetch Poster & Analyze** to display the poster, 
+    dominant colors, and an easy-to-understand mood analysis.
+    """)
+
+    import requests
+    from PIL import Image
+    import numpy as np
+    from sklearn.cluster import KMeans
+
+    # --- Editable code block ---
+    poster_code = '''
+
+imdb_id = IMDB_Ratings.loc[IMDB_Ratings['Title'] == selected_film, 'Movie ID'].values[0]
+
+
+url = f"http://www.omdbapi.com/?i={imdb_id}&apikey={OMDB_API_KEY}"
+response = requests.get(url).json()
+poster_url = response.get('Poster')
+
+if poster_url and poster_url != "N/A":
+    img = Image.open(requests.get(poster_url, stream=True).raw).convert("RGB")
+    img_small = img.resize((150, 150))
+    img_array = np.array(img_small).reshape(-1, 3)
+
+    
+    kmeans = KMeans(n_clusters=3, random_state=42).fit(img_array)
+    dominant_colors = kmeans.cluster_centers_
+
+    
+    st.image(poster_url, width=300)
+
+    
+    st.write("🎨 Dominant Colors:")
+    cols = st.columns(len(dominant_colors))
+    for idx, color in enumerate(dominant_colors.astype(int)):
+        hex_color = '#%02x%02x%02x' % tuple(color)
+        cols[idx].markdown(
+            "<div style='width:60px; height:60px; background:{}; border-radius:8px; border:1px solid #000'></div>".format(hex_color),
+            unsafe_allow_html=True
+        )
+
+    
+    brightness = np.mean(img_array)
+    if brightness < 100:
+        mood = "dark and moody"
+        cluster_name = "Cluster 0 – Thriller / Horror style"
+        mood_tag = "🌑 Dark Thriller vibes"
+    elif brightness < 170:
+        mood = "balanced"
+        cluster_name = "Cluster 1 – Drama / Realistic style"
+        mood_tag = "🎭 Dramatic tone"
+    else:
+        mood = "bright and vivid"
+        cluster_name = "Cluster 2 – Comedy / Family style"
+        mood_tag = "😂 Lighthearted & Fun"
+
+    
+    st.success("🎬 Poster assigned to: **{}**".format(cluster_name))
+    st.info("The poster looks **{}**, suggesting **{}**.\\n\\n👉 Mood tag: **{}**".format(
+        mood, cluster_name.split('–')[1].strip(), mood_tag
+    ))
+else:
+    st.warning("Poster not found.")
+'''
+
+    # --- Editable text area ---
+    user_poster_code = st.text_area("Python Poster Analysis Code (editable)", poster_code, height=650)
+
+    # --- Hidden API key ---
+    OMDB_API_KEY = "cbbdb8f8"  # Keep this hidden in production
+
+    # --- Movie selection ---
+    film_list = IMDB_Ratings['Title'].dropna().unique().tolist()
+    selected_film = st.selectbox("Select a movie to analyze poster:", film_list)
+
+    # --- Run button ---
+    if st.button("Fetch Poster & Analyze"):
+        try:
+            local_vars = {
+                "IMDB_Ratings": IMDB_Ratings,
+                "selected_film": selected_film,
+                "OMDB_API_KEY": OMDB_API_KEY,
+                "st": st,
+                "np": np,
+                "KMeans": KMeans,
+                "requests": requests,
+                "Image": Image
+            }
+            exec(user_poster_code, {}, local_vars)
+        except Exception as e:
+            st.error(f"Error running poster analysis: {e}")
+
+
+
+
+# --- Scenario 12: Deep Learning Semantic Genre Analysis (Dynamic) ---
 if scenario == "Scenario 12 – Semantic Genre & Recommendations (Deep Learning / NLP)":
     st.header("Scenario 12 – Semantic Genre & Recommendations (Deep Learning / NLP)")
     st.markdown("""
@@ -1173,33 +1170,15 @@ if scenario == "Scenario 12 – Semantic Genre & Recommendations (Deep Learning 
     - Predicted main genre
     """)
 
-    # --- Director dropdown ---
-    directors = ["Stanley Kubrick", "Steven Spielberg", "Martin Scorsese", "Christopher Nolan", "Ridley Scott"]
-    selected_director = st.selectbox("Choose a director:", directors, index=0)
+    # --- Dynamic list of directors from the dataset ---
+    directors_list = IMDB_Ratings["Director"].dropna().unique().tolist()
+    directors_list.sort()
+    selected_director = st.selectbox("Choose a director:", directors_list)
 
     # --- Hidden OMDb API key ---
-    OMDB_API_KEY = "bcf17f38"
+    OMDB_API_KEY = "72466310"  # keep this private
 
-    # --- Grey block with hidden key ---
-    with st.expander("🔑 Show Code ", expanded=False):
-        st.code("""
-import requests
-from sentence_transformers import SentenceTransformer, util
-import pandas as pd
-
-OMDB_API_KEY = "YOUR_OMDB_API_KEY" 
-
-model = SentenceTransformer("all-MiniLM-L6-v2")
-
-def fetch_movie_data(title):
-    url = f"http://www.omdbapi.com/?t={title}&apikey={OMDB_API_KEY}&plot=full"
-    response = requests.get(url).json()
-    plot = response.get("Plot") or "Plot missing"
-    genres = response.get("Genre").split(", ") if response.get("Genre") else ["Unknown"]
-    return {"Title": response.get("Title") or title, "Plot": plot, "Genre": genres}
-        """, language="python")
-
-    # --- Cached fetch function ---
+    # --- Cached function to fetch OMDb data ---
     @st.cache_data(show_spinner=False)
     def fetch_movie_data(title):
         import requests
@@ -1210,128 +1189,89 @@ def fetch_movie_data(title):
 
     # --- Run button ---
     if st.button("Run Deep Learning Genre Analysis"):
-        with st.spinner(f"Fetching films for {selected_director}..."):
+        # Get all movies for the selected director dynamically
+        movies = IMDB_Ratings[IMDB_Ratings["Director"] == selected_director]["Title"].dropna().tolist()
 
-            # Expanded film lists per director
-            director_movies = {
-                "Stanley Kubrick": [
-                    "2001: A Space Odyssey", "The Shining", "A Clockwork Orange",
-                    "Full Metal Jacket", "Eyes Wide Shut", "Spartacus", "Lolita",
-                    "Dr. Strangelove", "Barry Lyndon"
-                ],
-                "Steven Spielberg": [
-                    "Jaws", "E.T. the Extra-Terrestrial", "Jurassic Park",
-                    "Schindler's List", "Saving Private Ryan", "Minority Report",
-                    "Catch Me If You Can", "War of the Worlds", "The Post"
-                ],
-                "Martin Scorsese": [
-                    "Goodfellas", "Taxi Driver", "The Irishman",
-                    "Raging Bull", "Casino", "The Departed",
-                    "Hugo", "Shutter Island", "Gangs of New York"
-                ],
-                "Christopher Nolan": [
-                    "Inception", "Interstellar", "Dunkirk",
-                    "The Dark Knight", "The Dark Knight Rises", "Batman Begins",
-                    "Memento", "Tenet", "The Prestige"
-                ],
-                "Ridley Scott": [
-                    "Alien", "Blade Runner", "Gladiator",
-                    "Black Hawk Down", "The Martian", "Kingdom of Heaven",
-                    "Hannibal", "American Gangster", "Prometheus"
-                ]
-            }
+        if not movies:
+            st.warning(f"No movies found for {selected_director}")
+        else:
+            from sentence_transformers import SentenceTransformer, util
+            model = SentenceTransformer("all-MiniLM-L6-v2")
 
-            movies = director_movies.get(selected_director, [])
-            if not movies:
-                st.warning(f"No movies found for {selected_director}")
-            else:
-                # Load model once
-                from sentence_transformers import SentenceTransformer, util
-                model = SentenceTransformer("all-MiniLM-L6-v2")
+            results = []
 
-                results = []
+            for title in movies:
+                movie_data = fetch_movie_data(title)
+                plot = movie_data["Plot"]
+                genres = movie_data["Genre"]
 
-                for title in movies:
-                    movie_data = fetch_movie_data(title)
-                    plot = movie_data["Plot"]
-                    genres = movie_data["Genre"]
+                # Compute plot embedding
+                plot_embedding = model.encode(plot, convert_to_tensor=True)
 
-                    # Debug print (terminal only)
-                    print(f"Processing {title}: Plot length={len(plot)}, Genres={genres}")
+                # Compute similarity for each genre
+                similarities = {}
+                for g in genres:
+                    g_embedding = model.encode(g, convert_to_tensor=True)
+                    sim = util.cos_sim(plot_embedding, g_embedding).item()
+                    similarities[g] = round(sim, 3)
 
-                    # Compute plot embedding
-                    plot_embedding = model.encode(plot, convert_to_tensor=True)
+                # Main genre = highest similarity
+                main_genre = max(similarities, key=similarities.get) if similarities else "Unknown"
 
-                    # Compute similarity for each genre
-                    similarities = {}
-                    for g in genres:
-                        g_embedding = model.encode(g, convert_to_tensor=True)
-                        sim = util.cos_sim(plot_embedding, g_embedding).item()
-                        similarities[g] = round(sim, 3)
+                results.append({
+                    "Film": movie_data["Title"],
+                    "OMDb Genres": ", ".join(genres),
+                    "Embedding Similarity": similarities,
+                    "Main Genre (Predicted)": main_genre,
+                    "Plot": plot[:200] + "..." if len(plot) > 200 else plot
+                })
 
-                    # Main genre = highest similarity
-                    main_genre = max(similarities, key=similarities.get) if similarities else "Unknown"
+            df_results = pd.DataFrame(results)
+            st.success(f"Analysis complete for {selected_director} ✅")
+            st.dataframe(df_results, use_container_width=True)
 
-                    results.append({
-                        "Film": movie_data["Title"],
-                        "OMDb Genres": ", ".join(genres),
-                        "Embedding Similarity": similarities,
-                        "Main Genre (Predicted)": main_genre,
-                        "Plot": plot[:200] + "..." if len(plot) > 200 else plot
-                    })
+            st.markdown("""
+            **Explanation:**  
+            - Each **plot** is converted into a vector (embedding).  
+            - Each **genre** is also converted into a vector.  
+            - **Cosine similarity** measures semantic closeness (0 to 1).  
+            - The genre with the highest similarity is predicted as the **main genre**.  
+            - This helps when OMDb lists multiple genres, showing the most semantically relevant one.
+            """)
 
-                df_results = pd.DataFrame(results)
-                st.success(f"Analysis complete for {selected_director} ✅")
-                st.dataframe(df_results, use_container_width=True)
-
-                st.markdown("""
-                **Explanation:**  
-                - Each **plot** is converted into a vector (embedding).  
-                - Each **genre** is also converted into a vector.  
-                - **Cosine similarity** measures semantic closeness (0 to 1).  
-                - The genre with the highest similarity is predicted as the **main genre**.  
-                - This helps when OMDb lists multiple genres, showing the most semantically relevant one.
-                """)
-
-
-
-
-# --- Scenario 13: Live Ratings Monitor ---
-
-# --- Scenario 13: Live Ratings Monitor (MLOps + CI/CD + Monitoring) ---
+# --- Scenario 13: Live Ratings Monitor + Supervised ML Predictions (English only) ---
 if scenario == "Scenario 13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)":
     st.header("Scenario 13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)")
+
     st.markdown("""
-    This scenario compares my **static IMDb ratings** (from Excel) with the **current live IMDb ratings** from OMDb for my **top 50 films by static rating**.  
+**MLOps + CI/CD + Monitoring (Brief)**  
 
-    The table shows:  
-    - Title  
-    - Original IMDb Rating  
-    - Live IMDb Rating  
-    - Rating Difference  
-    - Timestamp of check
-    """)
+- **MLOps:** Automates data collection (live IMDb ratings), logs historical differences, and retrains ML models to predict future rating changes.  
+- **CI/CD:** Modular code can be version-controlled; in a full setup, changes would trigger automated testing and deployment.  
+- **Monitoring:** Tracks rating differences over time with timestamps, enabling detection of trends, anomalies, or shifts in popularity.
 
-    # --- Select top 50 films ---
-    top50_films = IMDB_Ratings.sort_values(by="IMDb Rating", ascending=False).head(50)
+**Supervised Machine Learning:**  
+The model uses my existing ratings (`My_Ratings`) as training data to learn patterns in how I rate movies.  
+Given movie features (IMDb rating, genre, director, year, votes), the model predicts my rating for unseen films.  
+""")
 
-    # --- Hidden API key / fetch function in grey box ---
-    with st.expander("🔑 Show Code", expanded=False):
-        st.code("""
-import requests
-OMDB_API_KEY = "YOUR_OMDB_API_KEY"  
+    # --- OMDb API key ---
+    OMDB_API_KEY = "50bcb7e2"
 
-def fetch_live_rating(title):
-    url = f"http://www.omdbapi.com/?t={title}&apikey={OMDB_API_KEY}"
-    resp = requests.get(url).json()
-    return float(resp.get("imdbRating", 0)) if resp.get("imdbRating") else None
-        """, language="python")
+    # --- Select top 100 films ---
+    top100_films = IMDB_Ratings.sort_values(by="IMDb Rating", ascending=False).head(100)
 
     # --- Run Button ---
     if st.button("Run Live Ratings Check"):
         import requests
         from datetime import datetime
         import os
+        import pandas as pd
+        import numpy as np
+        from sklearn.ensemble import RandomForestRegressor
+        from sklearn.preprocessing import OneHotEncoder
+        from sklearn.compose import ColumnTransformer
+        from sklearn.pipeline import Pipeline
 
         history_file = "live_ratings_history.csv"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -1344,372 +1284,133 @@ def fetch_live_rating(title):
 
         results = []
 
-        for _, row in top50_films.iterrows():
-            title = row["Title"]
+        # --- Fetch live ratings from OMDb using Movie ID (IMDb ID) ---
+        for _, row in top100_films.iterrows():
+            movie_id = row["Movie ID"]
             static_rating = row["IMDb Rating"]
 
             try:
-                url = f"http://www.omdbapi.com/?t={title}&apikey=YOUR_OMDB_API_KEY"
+                url = f"http://www.omdbapi.com/?i={movie_id}&apikey={OMDB_API_KEY}"
                 resp = requests.get(url).json()
-                live_rating = float(resp.get("imdbRating", 0)) if resp.get("imdbRating") else None
+
+                if resp.get("Response") == "True":
+                    # Normalize languages: split, strip, lowercase
+                    languages = [lang.strip().lower() for lang in resp.get("Language", "").split(",")]
+                    live_rating = float(resp.get("imdbRating", 0)) if resp.get("imdbRating") else None
+
+                    # Only include English-language films
+                    if "english" not in languages:
+                        continue
+                else:
+                    live_rating = None
+                    languages = []
             except Exception:
                 live_rating = None
+                languages = []
 
             rating_diff = live_rating - static_rating if live_rating is not None else None
 
             results.append({
-                "Title": title,
+                "Title": row["Title"],
                 "IMDb Rating (Static)": static_rating,
                 "IMDb Rating (Live)": live_rating,
                 "Rating Difference": rating_diff,
-                "CheckedAt": timestamp
+                "CheckedAt": timestamp,
+                "Movie ID": movie_id,
+                "Genre": row.get("Genre"),
+                "Director": row.get("Director"),
+                "Year": row.get("Year"),
+                "Num Votes": row.get("Num Votes"),
+                "Language": ", ".join([lang.capitalize() for lang in languages])
             })
 
         new_df = pd.DataFrame(results)
 
-        # Append to history and save CSV
-        history_df = pd.concat([history_df, new_df], ignore_index=True)
-        history_df.to_csv(history_file, index=False)
+        # Only keep rows with non-zero rating differences if the column exists
+        if not new_df.empty and "Rating Difference" in new_df.columns:
+            new_df = new_df[new_df["Rating Difference"] != 0]
+        else:
+            new_df = pd.DataFrame()  # Ensure it’s still a DataFrame even if empty
 
         st.success("Live ratings check complete ✅")
-        st.dataframe(history_df, use_container_width=True)
 
-        st.markdown("""
-        **Explanation:**  
-        - Each film's **static IMDb rating** from my Excel is compared with the **current live IMDb rating** from OMDb.  
-        - **Rating Difference** shows how much the rating changed.  
-        - **CheckedAt** shows when this check was performed.  
-        - All results are saved to `live_ratings_history.csv`, supporting **MLOps + CI/CD + Monitoring** by logging changes over time.  
-        - The `live_ratings_history.csv` can be version-controlled on GitHub to track rating changes over time.
-        - True automated monitoring could be added by scheduling this script to run at regular intervals (e.g., daily or weekly) and pushing the results to a versioned repository.
-        """)
-
-
-
-
-# --- Scenario 14: Network Influence Analysis (Visual Network) ---
-
-# --- Scenario 14: Network Influence Analysis ---
-if scenario == "Scenario 14 – Network Influence Analysis: Identify Key Actor-Director Connections in My Top 100 Personal Films":
-    import networkx as nx
-    import matplotlib.pyplot as plt
-    import requests
-    from itertools import chain
-
-    st.header("Scenario 14 – Network Influence Analysis")
-    st.markdown("""
-    Select a film from my **top-rated films** to see connections:
-    - Director and actors of the film ( try Annie Hall if you are not sure which film to select - be patient when requesting the analysis ) 
-    - Other films sharing the same director or actors (from my top-rated list)
-    - Visual network of relationships
-    """)
-
-    # --- Filter top-rated films (8 or 9) ---
-    top_films = My_Ratings[My_Ratings["Your Rating"] >= 8].copy()
-
-    if top_films.empty:
-        st.warning("No films with rating 8 or 9 found in your My_Ratings Excel.")
-    else:
-        # --- Film selection ---
-        film_options = top_films["Title"].astype(str).tolist()
-        selected_film = st.selectbox("Select a film to inspect:", film_options)
-
-        # --- Show code in grey box ---
-        with st.expander("🔑 Show Code", expanded=False):
-            st.code("""
-# Fetch director and actors from OMDb
-import requests
-
-def fetch_film_details(title):
-    OMDB_API_KEY = "YOUR_OMDB_API_KEY"
-    url = f"http://www.omdbapi.com/?t={title}&apikey={OMDB_API_KEY}"
-    resp = requests.get(url).json()
-    director = resp.get("Director", "")
-    actors = resp.get("Actors", "")
-    return director, [a.strip() for a in actors.split(",")] if actors else []
-
-director, actors_list = fetch_film_details(selected_film)
-
-# Build network graph
-import networkx as nx
-G = nx.Graph()
-G.add_node(selected_film, type="film")
-G.add_node(director, type="director")
-G.add_edges_from([(selected_film, director)])
-for actor in actors_list:
-    G.add_node(actor, type="actor")
-    G.add_edge(selected_film, actor)
-
-# Add related films
-for _, row in top_films.iterrows():
-    if row["Title"] == selected_film:
-        continue
-    related_title = row["Title"]
-    rel_director, rel_actors = fetch_film_details(related_title)
-    # Connect if same director
-    if rel_director == director:
-        G.add_node(related_title, type="film")
-        G.add_edge(related_title, director)
-    # Connect if shared actor
-    shared_actors = set(rel_actors).intersection(set(actors_list))
-    for sa in shared_actors:
-        G.add_node(related_title, type="film")
-        G.add_edge(related_title, sa)
-
-# Draw network
-import matplotlib.pyplot as plt
-pos = nx.spring_layout(G, k=0.5, iterations=50)
-colors = []
-for n, data in G.nodes(data=True):
-    if data["type"] == "film":
-        colors.append("lightblue")
-    elif data["type"] == "director":
-        colors.append("lightgreen")
-    else:
-        colors.append("lightpink")
-nx.draw(G, pos, with_labels=True, node_color=colors, node_size=1500, font_size=10)
-plt.show()
-            """, language="python")
-
-        # --- Run button ---
-        if st.button("Run Network Analysis"):
-            def fetch_film_details(title):
-                OMDB_API_KEY = "bcf17f38"  # Replace with your own
-                url = f"http://www.omdbapi.com/?t={title}&apikey={OMDB_API_KEY}"
-                resp = requests.get(url).json()
-                director = resp.get("Director", "")
-                actors = resp.get("Actors", "")
-                return director, [a.strip() for a in actors.split(",")] if actors else []
-
-            director, actors_list = fetch_film_details(selected_film)
-
-            st.markdown(f"**Selected Film:** {selected_film}")
-            st.markdown(f"**Director:** {director}")
-            st.markdown(f"**Actors:** {', '.join(actors_list)}")
-
-            # Build network graph
-            G = nx.Graph()
-            G.add_node(selected_film, type="film")
-            G.add_node(director, type="director")
-            G.add_edges_from([(selected_film, director)])
-            for actor in actors_list:
-                G.add_node(actor, type="actor")
-                G.add_edge(selected_film, actor)
-
-            # Add related films
-            for _, row in top_films.iterrows():
-                if row["Title"] == selected_film:
-                    continue
-                related_title = row["Title"]
-                rel_director, rel_actors = fetch_film_details(related_title)
-                # Connect if same director
-                if rel_director == director:
-                    G.add_node(related_title, type="film")
-                    G.add_edge(related_title, director)
-                # Connect if shared actor
-                shared_actors = set(rel_actors).intersection(set(actors_list))
-                for sa in shared_actors:
-                    G.add_node(related_title, type="film")
-                    G.add_edge(related_title, sa)
-
-            # Draw network
-            plt.figure(figsize=(12, 8))
-            pos = nx.spring_layout(G, k=0.5, iterations=50)
-            colors = []
-            for n, data in G.nodes(data=True):
-                if data["type"] == "film":
-                    colors.append("lightblue")
-                elif data["type"] == "director":
-                    colors.append("lightgreen")
-                else:
-                    colors.append("lightpink")
-            nx.draw(G, pos, with_labels=True, node_color=colors, node_size=1500, font_size=10)
-            st.pyplot(plt)
-            
-            st.markdown("""
-            **Explanation:**  
-            - The selected film connects to its **director** and **actors**.  
-            - Other films in your top-rated list are added if they share the **same director** or any **actors**.  
-            - Colors:  
-                - **Light blue** = film  
-                - **Light green** = director  
-                - **Light pink** = actors  
-            - This visualizes key influence connections interactively without cluttering a full network graph.
-            """)
-
-
-
-
-
-# --- Scenario 15: Counterfactual Analysis ---
-if scenario == "Scenario 15 – Counterfactual Analysis (1960s–70s Infamous Sci-Fi with Modern Directors & Budgets)":
-    st.markdown("Scenario 15 – Counterfactual Analysis (1960s–70s Infamous Sci-Fi with Modern Directors & Budgets)")
-
-    st.write("""
-    What if notoriously bad science fiction films had been made by great directors, with bigger budgets, 
-    and with proven sci-fi actors?  
-    This scenario explores counterfactuals: imagining how ratings might have changed.  
-    """)
-
-    with st.expander("📜 Show Code (Hidden API Key)"):
-        st.code("""
-import requests
-import pandas as pd
-
-# Example setup for OMDb + counterfactual analysis
-OMDB_API_KEY = "YOUR_OMDB_API_KEY"
-
-# Function to fetch current IMDb rating
-def get_imdb_rating(title):
-    url = f"http://www.omdbapi.com/?t={title}&apikey={OMDB_API_KEY}"
-    data = requests.get(url).json()
-    return float(data.get("imdbRating", 0)) if "imdbRating" in data else None
-
-# Counterfactual logic: adjust rating with weights
-def counterfactual_rating(current_rating, director_boost, budget_boost, actor_boost):
-    return min(10, round(current_rating + director_boost + budget_boost + actor_boost, 1))
-        """, language="python")
-
-    # --- Inputs ---
-    st.write("#### Step 1: Select a Bad Sci-Fi Film")
-    bad_sci_fi_list = [
-        "Plan 9 from Outer Space", "Robot Monster", "Santa Claus Conquers the Martians",
-        "The Giant Claw", "Invasion of the Star Creatures", "Space Mutiny",
-        "Battlefield Earth", "Manos: The Hands of Fate", "Zaat", "Starcrash"
-    ]
-    selected_film = st.selectbox("Choose a notorious sci-fi film:", bad_sci_fi_list, index=0)
-
-    st.write("#### Step 2: Choose a Renowned Director")
-    directors = ["Christopher Nolan", "Ridley Scott", "James Cameron", "Denis Villeneuve", "George Lucas"]
-    selected_director = st.selectbox("Select a director:", directors)
-
-    st.write("#### Step 3: Choose a Budget (in million $)")
-    budget = st.slider("Budget", min_value=1, max_value=250, value=50, step=5)
-
-    st.write("#### Step 4: Choose Actors (Proven Sci-Fi Stars)")
-    actors = st.multiselect(
-        "Pick actors:",
-        ["Sigourney Weaver", "Harrison Ford", "Keanu Reeves", "Natalie Portman", "Chris Pratt", "Scarlett Johansson"],
-        default=["Harrison Ford"]
-    )
-
-    # --- Run Button ---
-    if st.button("🚀 Run Counterfactual Analysis"):
-        # Mock example of fetching current rating
-        current_rating = 3.6 if selected_film == "Plan 9 from Outer Space" else 4.0  
-
-        # Mock adjustment logic
-        director_boost = 2.0 if selected_director in ["Christopher Nolan", "Ridley Scott", "James Cameron"] else 1.5
-        budget_boost = min(2.0, budget / 100)  # more budget, more possible boost
-        actor_boost = len(actors) * 0.3
-
-        new_rating = min(10, round(current_rating + director_boost + budget_boost + actor_boost, 1))
-        change = round(new_rating - current_rating, 1)
-
-        # Show results in table
-        result_df = pd.DataFrame([{
-            "Film": selected_film,
-            "Current IMDb Rating": current_rating,
-            "Counterfactual IMDb Rating": new_rating,
-            "Change": change,
-            "Director": selected_director,
-            "Budget ($M)": budget,
-            "Actors": ", ".join(actors)
-        }])
-
-        st.write("### Counterfactual Results 📊")
-        st.dataframe(result_df, use_container_width=True)
-
-        st.write("---")
-        st.markdown("""
-        ### Explanation  
-        This analysis simulates how a notoriously bad sci-fi film might have been received under different circumstances:  
-        - **Director Boost**: Adding the influence of acclaimed sci-fi directors.  
-        - **Budget Boost**: Reflecting how higher production value can improve audience reception.  
-        - **Actor Boost**: Recognizing how proven sci-fi actors attract both critics and audiences.  
-
-        While purely hypothetical, this exercise highlights the *impact of talent and resources* on film ratings.
-        """)
-
-# Scenario 16 # -------------------------------
-
-elif scenario == "Scenario 16 – Collaborative Filtering: Recommend Genres/Directors Based on My Personal High Ratings":
-    st.markdown("#### Collaborative Filtering – Recommend Films I Haven’t Seen Yet")
-
-    st.markdown("""
-    **Note:** This scenario differs from Scenario 2 – Hybrid Recommendations (SQL):
-    - Scenario 2 uses a **point-based SQL scoring system** considering past directors/genres and vote counts.  
-    - Scenario 16 uses **collaborative filtering**, focusing on **top-rated films I liked** and recommending unseen films from IMDb with **similar directors or genres**.  
-    - Scenario 16 is more personalized to **your top-rated films** rather than applying a static scoring system.
-    """)
-
-    if not My_Ratings.empty and not IMDB_Ratings.empty:
-        # Filter only high-rated films from your ratings
-        top_films = My_Ratings[My_Ratings["Your Rating"] >= 8]
-
-        if top_films.empty:
-            st.warning("No films rated 8 or higher in your data.")
-        else:
-            # --- Film Selection ---
-            selected_film = st.selectbox(
-                "Select a film to get recommendations:",
-                top_films["Title"].tolist()
+        # --- Show sorted results by Rating Difference ---
+        if not new_df.empty:
+            st.subheader("📊 Current Run")
+            st.dataframe(
+                new_df.sort_values(by="Rating Difference", ascending=False).reset_index(drop=True),
+                use_container_width=True
             )
+        else:
+            st.warning("No English-language films with rating changes found in this run.")
 
-            # --- Show code ---
-            with st.expander("🔑 Show Code", expanded=False):
-                st.code("""
-# Hybrid Collaborative Filtering: Director + Genre
-selected_row = My_Ratings[My_Ratings["Title"] == selected_film]
-director = selected_row["Director"].values[0]
-genres = selected_row["Genre"].values[0].split(", ")
+        # --- Supervised ML: Predict My Ratings for Movies with Changed Live Ratings ---
+        df_ml = IMDB_Ratings.merge(My_Ratings[['Movie ID','Your Rating']], on='Movie ID', how='left')
+        df_ml = df_ml.merge(new_df[['Movie ID','Rating Difference']], on='Movie ID', how='left')
 
-# Films not yet rated by you
-unseen = IMDB_Ratings[~IMDB_Ratings["Title"].isin(My_Ratings["Title"])]
+        predict_df = df_ml[(df_ml['Rating Difference'].notna()) & (df_ml['Your Rating'].isna())].copy()
+        train_df = df_ml[df_ml['Your Rating'].notna()]
 
-# Films with same director
-same_director = unseen[unseen["Director"] == director]
+        categorical_features = ['Genre', 'Director']
+        numerical_features = ['IMDb Rating', 'Num Votes', 'Year']
 
-# Films in same genres
-same_genre = unseen[unseen["Genre"].apply(lambda g: any(genre in g for genre in genres))]
+        preprocessor = ColumnTransformer(
+            transformers=[
+                ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features),
+                ('num', 'passthrough', numerical_features)
+            ]
+        )
 
-# Combine, remove duplicates
-recommendations = pd.concat([same_director, same_genre]).drop_duplicates(subset=["Title"])
-                """, language="python")
+        model = Pipeline([
+            ('prep', preprocessor),
+            ('reg', RandomForestRegressor(n_estimators=100, random_state=42))
+        ])
 
-            # --- Run button ---
-            if st.button("Run Recommendations"):
-                selected_row = My_Ratings[My_Ratings["Title"] == selected_film]
-                director = selected_row["Director"].values[0]
-                genres = selected_row["Genre"].values[0].split(", ")
+        X_train = train_df[categorical_features + numerical_features]
+        y_train = train_df['Your Rating']
+        model.fit(X_train, y_train)
 
-                # Only films you haven't seen/rated yet
-                unseen = IMDB_Ratings[~IMDB_Ratings["Title"].isin(My_Ratings["Title"])]
+        X_pred = predict_df[categorical_features + numerical_features]
+        predict_df['Predicted Rating'] = model.predict(X_pred)
 
-                # Same director
-                same_director = unseen[unseen["Director"] == director]
+        if not predict_df.empty:
+            st.subheader("🤖 Predicted Ratings for Unseen Movies with Changed Ratings")
+            st.dataframe(
+                predict_df[['Title','IMDb Rating','Genre','Director','Rating Difference','Predicted Rating']]
+                .sort_values(by='Predicted Rating', ascending=False)
+                .reset_index(drop=True),
+                use_container_width=True
+            )
+        else:
+            st.info("No new English-language movies available for prediction this run.")
 
-                # Same genre
-                same_genre = unseen[unseen["Genre"].apply(lambda g: any(genre in g for genre in genres))]
+        # --- Explain how Python and packages make predictions ---
+        st.markdown("""
+**How the Predictions Work (Technical Explanation):**  
 
-                # Combine and drop duplicates
-                recommendations = pd.concat([same_director, same_genre]).drop_duplicates(subset=["Title"])
+1. **Data Preparation**  
+   - Features used: `Genre`, `Director` (categorical), `IMDb Rating`, `Num Votes`, `Year` (numerical).  
+   - `My Rating` is the target variable for supervised learning.
 
-                if recommendations.empty:
-                    st.info("No unseen recommendations found for this film.")
-                else:
-                    st.write(f"**Based on '{selected_film}', I may like these unseen films:**")
-                    st.dataframe(
-                        recommendations[["Title", "Director", "Genre", "IMDb Rating"]],
-                        use_container_width=True
-                    )
+2. **Feature Encoding with `ColumnTransformer` and `OneHotEncoder`**  
+   - Categorical features are converted to **one-hot encoded vectors**.  
+   - Numerical features are passed through unchanged.  
 
-                    st.markdown("""
-                    **Explanation:**  
-                    - Shows films I haven't rated yet.  
-                    - Prioritizes **same director**, then supplements with **same genre** films.  
-                    - This hybrid approach recommends unseen films most similar to my top-rated ones.
-                    """)
-    else:
-        st.warning("My Ratings or IMDb Ratings table is empty.")
+3. **Pipeline with `RandomForestRegressor`**  
+   - Combines preprocessing and model training.  
+   - Random forest is an **ensemble of decision trees**:  
+     - Each tree predicts independently.  
+     - The final prediction is the average across all trees.  
+     - This reduces overfitting and improves accuracy.
 
+4. **Training**  
+   - Model learns patterns from movies I have rated (`Your Rating`).  
+
+5. **Prediction**  
+   - Model predicts ratings for movies I haven’t rated based on learned patterns.  
+
+6. **Why this works**  
+   - Handles non-linear relationships and feature interactions naturally.  
+   - One-hot encoding allows categorical variables like directors and genres to be used.  
+   - Random forests are robust to overfitting and can generalize well to unseen movies.
+""")
