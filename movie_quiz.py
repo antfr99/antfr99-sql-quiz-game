@@ -1261,7 +1261,7 @@ Given movie features (IMDb rating, genre, director, year, votes), the model pred
 
     # --- Select top 100 films ---
     top100_films = IMDB_Ratings[
-    IMDB_Ratings['Genre'].str.contains("Action", case=False, na=False)
+    IMDB_Ratings['Genre'].str.contains("Horror", case=False, na=False)
     ].sort_values(by="IMDb Rating", ascending=False).head(100)
 
 
