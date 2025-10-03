@@ -1352,7 +1352,12 @@ Given movie features (IMDb rating, genre, director, year, votes), the model pred
         df_ml = IMDB_Ratings.merge(My_Ratings[['Movie ID','Your Rating']], on='Movie ID', how='left')
         df_ml = df_ml.merge(new_df[['Movie ID','Rating Difference']], on='Movie ID', how='left')
 
-        predict_df = df_ml[(df_ml['Rating Difference'].notna()) & (df_ml['Your Rating'].isna())].copy()
+        # Only predict for unseen movies from the current Horror subset with rating changes
+        predict_df = df_ml[
+        (df_ml['Movie ID'].isin(top100_films['Movie ID'])) &
+        (df_ml['Rating Difference'].notna()) &
+        (df_ml['Your Rating'].isna())
+        ].copy()
         train_df = df_ml[df_ml['Your Rating'].notna()]
 
         categorical_features = ['Genre', 'Director']
