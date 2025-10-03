@@ -1259,8 +1259,11 @@ Given movie features (IMDb rating, genre, director, year, votes), the model pred
     # --- OMDb API key ---
     OMDB_API_KEY = "50bcb7e2"
 
-    # --- Select top 100 films ---
-    top100_films = IMDB_Ratings.sort_values(by="IMDb Rating", ascending=False).head(100)
+    # --- Select top 100 Horror films ---
+    top100_films = IMDB_Ratings[
+    IMDB_Ratings['Genre'].str.contains("Horror", case=False, na=False)
+    ].sort_values(by="IMDb Rating", ascending=False).head(100)
+
 
     # --- Run Button ---
     if st.button("Run Live Ratings Check"):
