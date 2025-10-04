@@ -21,7 +21,7 @@ st.set_page_config(
 
 st.title("IMDb/SQL/PYTHON Data Project 🎬")
 st.write("""
-This is an experimental project that integrates several Python libraries, including Pandas, PandasQL, NumPy, Streamlit, Scikit-learn, SciPy, TextBlob, Matplotlib, Seaborn, NetworkX, Sentence-Transformers and Requests. It also incorporates SQL, the OMDb API, AI, GitHub, and IMDb.
+This is an experimental project that integrates several Python libraries, including Pandas, PandasQL, NumPy, Streamlit, Scikit-learn, SciPy, TextBlob, Matplotlib, Seaborn, NetworkX, Sentence-Transformers and Requests. It also incorporates SQL, the OMDb API, AI, GitHub, and IMDb.- Antonio Friguglietti
 """)
 
 st.markdown("""
@@ -91,19 +91,19 @@ else:
 scenario = st.radio(
     "Choose a scenario:",
     [
-        "Scenario 1 – Highlight Disagreements (SQL)",
-        "Scenario 2 – Hybrid Recommendations (SQL)",
-        "Scenario 3 – Top Unseen Films by Decade (SQL)",
-        "Scenario 4 – Statistical Insights by Genre (Agreement)",
-        "Scenario 5 – Statistical Insights by Director (t-test)",
-        "Scenario 6 – Review Analysis (Sentiment, Subjectivity)",
-        "Scenario 7 – Poster Image Analysis (OMDb API)",
-        "Scenario 8 – Graph Based Movie Relationships",
-        "Scenario 9 – Predict My Ratings (ML)", 
-        "Scenario 10 – Model Evaluation (Feature Importance)",
-        "Scenario 11 – Feature Hypothesis Testing",
-        "Scenario 12 – Semantic Genre & Recommendations (Deep Learning / NLP)",
-        "Scenario 13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)",      
+        "1 – Highlight Disagreements (SQL)",
+        "2 – Hybrid Recommendations (SQL)",
+        "3 – Top Unseen Films by Decade (SQL)",
+        "4 – Statistical Insights by Genre (Agreement)",
+        "5 – Statistical Insights by Director (t-test)",
+        "6 – Review Analysis (Sentiment, Subjectivity)",
+        "7 – Poster Image Analysis (OMDb API)",
+        "8 – Graph Based Movie Relationships",
+        "9 – Predict My Ratings (ML)", 
+        "10 – Model Evaluation (Feature Importance)",
+        "11 – Feature Hypothesis Testing",
+        "12 – Semantic Genre & Recommendations (Deep Learning / NLP)",
+        "13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)",      
                 
     ]
 )
@@ -112,8 +112,8 @@ scenario = st.radio(
 
 
 # --- Scenario 1: SQL Playground ---
-if scenario == "Scenario 1 – Highlight Disagreements (SQL)":
-    st.header("Scenario 1 – Highlight Disagreements (SQL)")
+if scenario == "1 – Highlight Disagreements (SQL)":
+    st.header("1 – Highlight Disagreements (SQL)")
     st.write("Movies where my rating differs from IMDb by more than 2 points.")
 
     default_query_1 = """SELECT 
@@ -141,8 +141,8 @@ LIMIT 1000;"""
             st.error(f"Error in SQL query: {e}")
 
 # --- Scenario 2: SQL Playground ---
-if scenario == "Scenario 2 – Hybrid Recommendations (SQL)":
-    st.header("Scenario 2 – Hybrid Recommendations (SQL)")
+if scenario == "2 – Hybrid Recommendations (SQL)":
+    st.header("2 – Hybrid Recommendations (SQL)")
     st.write("""
     Recommend movies I haven't seen yet with a bonus point system:  
     - Director I liked before → +1 point  
@@ -179,8 +179,8 @@ LIMIT 10000;"""
 
 
 # --- Scenario 3: SQL Playground ---
-if scenario == "Scenario 3 – Top Unseen Films by Decade (SQL)":
-    st.header("Scenario 3 – Top Unseen Films by Decade (SQL)")
+if scenario == "3 – Top Unseen Films by Decade (SQL)":
+    st.header("3 – Top Unseen Films by Decade (SQL)")
     st.write("""
     Shows the highest-rated unseen films grouped by decade.  
     Uses Python deduplication and limits results to the top 20 per decade.
@@ -226,8 +226,8 @@ ORDER BY Decade, [IMDb Rating] DESC, [Num Votes] DESC;
 
 
 # --- Scenario 9: Python ML ---
-if scenario == "Scenario 9 – Predict My Ratings (ML)":
-    st.header("Scenario 9 – Predict My Ratings (ML)")
+if scenario == "9 – Predict My Ratings (ML)":
+    st.header("9 – Predict My Ratings (ML)")
     st.write("""
     Predict my ratings for unseen movies using a machine learning model.
 
@@ -306,8 +306,8 @@ predict_df
 
 
 # --- Scenario 4: Statistical Insights ---
-if scenario == "Scenario 4 – Statistical Insights by Genre (Agreement)":
-    st.header("Scenario 4 – Statistical Insights by Genre (Agreement)")
+if scenario == "4 – Statistical Insights by Genre (Agreement)":
+    st.header("4 – Statistical Insights by Genre (Agreement)")
     st.write("""
     This analysis measures how often my ratings align with IMDb ratings **within a tolerance band of ±1 point**.  
     Results are grouped by genre, showing agreements, disagreements, and overall percentages.
@@ -366,8 +366,8 @@ genre_agreement.sort_values(by='Agreement_%', ascending=False)
 
 
 # --- Scenario 5: Statistical Insights (t-test per Director) ---
-if scenario == "Scenario 5 – Statistical Insights by Director (t-test)":
-    st.header("Scenario 5 – Statistical Insights by Director (t-test)")
+if scenario == "5 – Statistical Insights by Director (t-test)":
+    st.header("5 – Statistical Insights by Director (t-test)")
     st.write("""
 This analysis compares my ratings with IMDb ratings on a director-by-director basis using a **paired t-test**.  
 The test checks whether the differences between my ratings and IMDb’s are statistically significant for each director.  
@@ -451,8 +451,8 @@ import pandas as pd
 import streamlit as st
 
 
-if scenario == "Scenario 6 – Review Analysis (Sentiment, Subjectivity)":
-    st.header("Scenario 6 – Review Analysis (Sentiment, Subjectivity)")
+if scenario == "6 – Review Analysis (Sentiment, Subjectivity)":
+    st.header("6 – Review Analysis (Sentiment, Subjectivity)")
 
     # --- Short explanation ---
     st.markdown("""
@@ -621,8 +621,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # --- Scenario 8 ---
-if scenario == "Scenario 10 – Model Evaluation (Feature Importance)":
-    st.header("Scenario 10 – Model Evaluation: Feature Importance")
+if scenario == "10 – Model Evaluation (Feature Importance)":
+    st.header("10 – Model Evaluation: Feature Importance")
 
     st.write("""
     We analyze which features matter most for predicting **my movie ratings** using a Random Forest model.  
@@ -746,8 +746,8 @@ if scenario == "Scenario 10 – Model Evaluation (Feature Importance)":
 
 
 # --- Scenario 11: Feature Hypothesis Testing ---
-if scenario == "Scenario 11 – Feature Hypothesis Testing":
-    st.header("Scenario 11 – Feature Hypothesis Testing & Predictions")
+if scenario == "11 – Feature Hypothesis Testing":
+    st.header("11 – Feature Hypothesis Testing & Predictions")
 
     st.markdown("""
     Select features to test if they **improve model predictions** for your ratings.
@@ -916,13 +916,13 @@ if scenario == "Scenario 11 – Feature Hypothesis Testing":
         st.write("""
         **Interpretation of RMSE Boxplot and Model Comparison**
 
-        **Scenario 1: Baseline Model (Numeric Features Only)**
+        **1: Baseline Model (Numeric Features Only)**
         - Uses only `IMDb Rating` and `Num Votes`.
         - Captures general popularity and average rating information.
         - Higher RMSE → predictions deviate more from your actual ratings.
         - Wide spread → inconsistent performance across movies.
 
-        **Scenario 2: Feature-Added Model (Selected Features Included)**
+        **2: Feature-Added Model (Selected Features Included)**
         - Includes additional features such as `Director`, `Genre`, `Year`.
         - Provides context about your personal preferences.
         - Lower RMSE → predictions closer to your actual ratings.
@@ -937,8 +937,8 @@ if scenario == "Scenario 11 – Feature Hypothesis Testing":
 
 
 # --- Scenario 8: Graph-Based Movie Relationships ---
-if scenario == "Scenario 8 – Graph Based Movie Relationships":
-    st.header("Scenario 8 – Graph-Based Movie Relationships")
+if scenario == "8 – Graph Based Movie Relationships":
+    st.header("8 – Graph-Based Movie Relationships")
     st.write("""
     This scenario models the dataset as a **graph**:
     - **Nodes**: Movies, Directors, Genres  
@@ -1059,8 +1059,8 @@ This visualization helps you explore the movie dataset’s structure and uncover
 
 
 # --- Scenario 7 Poster Analysis ---
-if scenario == "Scenario 7 – Poster Image Analysis (OMDb API)":
-    st.header("Scenario 7 – Poster Image & Mood Analysis")
+if scenario == "7 – Poster Image Analysis (OMDb API)":
+    st.header("7 – Poster Image & Mood Analysis")
     st.markdown("""
     Select a movie, then click **Fetch Poster & Analyze** to display the poster, 
     dominant colors, and an easy-to-understand mood analysis.
@@ -1158,8 +1158,8 @@ else:
 
 
 # --- Scenario 12: Deep Learning Semantic Genre Analysis (Dynamic) ---
-if scenario == "Scenario 12 – Semantic Genre & Recommendations (Deep Learning / NLP)":
-    st.header("Scenario 12 – Semantic Genre & Recommendations (Deep Learning / NLP)")
+if scenario == "12 – Semantic Genre & Recommendations (Deep Learning / NLP)":
+    st.header("12 – Semantic Genre & Recommendations (Deep Learning / NLP)")
     st.markdown("""
     This scenario uses **sentence embeddings** to determine the main genre of films by analyzing the plot.  
     The table shows:
@@ -1241,8 +1241,8 @@ if scenario == "Scenario 12 – Semantic Genre & Recommendations (Deep Learning 
 
 
 # --- Scenario 13: Live Ratings Monitor + Supervised ML Predictions (English only) ---
-if scenario == "Scenario 13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)":
-    st.header("Scenario 13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)")
+if scenario == "13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)":
+    st.header("13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)")
 
     st.markdown("""
 **MLOps + CI/CD + Monitoring (Brief)**  
