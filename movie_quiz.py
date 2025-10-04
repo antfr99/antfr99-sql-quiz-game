@@ -1253,7 +1253,7 @@ if scenario == "13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)":
 
 **Supervised Machine Learning:**  
 The model uses my existing ratings (`My_Ratings`) as training data to learn patterns in how I rate movies.  
-Given movie features (IMDb rating, genre, director, year, votes), the model predicts my rating for unseen films.  
+Given movie features (IMDb rating, genre, director, year, votes), the model predicts my rating for unseen films - Horror Films only.  
 """)
 
     # --- OMDb API key ---
@@ -1340,7 +1340,7 @@ Given movie features (IMDb rating, genre, director, year, votes), the model pred
 
         # --- Show sorted results by Rating Difference ---
         if not new_df.empty:
-            st.subheader("📊 Current Run - Live Ratins Comparison - Horror Films only")
+            st.subheader("📊 Current Run - Live Ratings Comparison")
             st.dataframe(
                 new_df.sort_values(by="Rating Difference", ascending=False).reset_index(drop=True),
                 use_container_width=True
@@ -1383,7 +1383,7 @@ Given movie features (IMDb rating, genre, director, year, votes), the model pred
         predict_df['Predicted Rating'] = model.predict(X_pred)
 
         if not predict_df.empty:
-            st.subheader("🤖 Predicted Ratings for Unseen Horror Movies with Changed Ratings")
+            st.subheader("🤖 Predicted Ratings for Unseen Movies with Changed Ratings")
             st.dataframe(
                 predict_df[['Title','IMDb Rating','Genre','Director','Rating Difference','Predicted Rating']]
                 .sort_values(by='Predicted Rating', ascending=False)
