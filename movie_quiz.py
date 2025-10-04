@@ -1261,7 +1261,7 @@ Given movie features (IMDb rating, genre, director, year, votes), the model pred
 
     # --- Select top 100 films ---
     top300_films = IMDB_Ratings[
-    IMDB_Ratings['Genre'].str.contains("Comedy", case=False, na=False)
+    IMDB_Ratings['Genre'].str.contains("Horror", case=False, na=False)
     ].sort_values(by="IMDb Rating", ascending=False).head(300)
 
 
@@ -1340,7 +1340,7 @@ Given movie features (IMDb rating, genre, director, year, votes), the model pred
 
         # --- Show sorted results by Rating Difference ---
         if not new_df.empty:
-            st.subheader("📊 Current Run - Comedy")
+            st.subheader("📊 Current Run - Horror")
             st.dataframe(
                 new_df.sort_values(by="Rating Difference", ascending=False).reset_index(drop=True),
                 use_container_width=True
@@ -1383,7 +1383,7 @@ Given movie features (IMDb rating, genre, director, year, votes), the model pred
         predict_df['Predicted Rating'] = model.predict(X_pred)
 
         if not predict_df.empty:
-            st.subheader("🤖 Predicted Ratings for Unseen Comedy Movies with Changed Ratings")
+            st.subheader("🤖 Predicted Ratings for Unseen Horror Movies with Changed Ratings")
             st.dataframe(
                 predict_df[['Title','IMDb Rating','Genre','Director','Rating Difference','Predicted Rating']]
                 .sort_values(by='Predicted Rating', ascending=False)
