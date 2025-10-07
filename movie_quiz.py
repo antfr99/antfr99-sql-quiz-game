@@ -13,6 +13,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.neighbors import NearestNeighbors
 
 
+
 # --- Page Config ---
 st.set_page_config(
     layout="wide",
@@ -1426,26 +1427,27 @@ Given movie features (IMDb rating, genre, director, year, votes), the model pred
    - Random forests are robust to overfitting and can generalize well to unseen movies.
 """)
         
-
-# --- Scenario 9: Natural-Language Film Q&A Assistant ---
+# --- Scenario 9: Natural-Language Film Q&A Assistant (final version) ---
 if scenario.startswith("9"):
     import streamlit as st
     import pandas as pd
     import textwrap
+    import re
 
     # --- Header ---
     st.subheader("🎬 9 – Natural-Language Film Q&A Assistant")
 
-    # --- Description ---
+    # --- Description (your version) ---
     st.markdown("""
-This scenario allows you to ask **natural-language questions** about your personal film ratings and IMDb ratings.  
+This scenario allows you to ask **natural-language questions** about your personal film ratings and IMDb ratings.
 
-It works like a **keyword-based data assistant**:
-1. You can filter films by **genre** (e.g., comedy, horror, drama) or by **director** (full or last name).  
-2. You can specify your intent with words like **highest**, **lowest**, **top**, or **worst** to sort results.  
-3. The system scans your question, applies filters and sorting, and displays the relevant films.
+It works like a keyword-based data assistant:
+- filter by genre (e.g., comedy, horror, drama)
+- filter by director (first or last name)
+- sort by intent words like "top", "highest", "lowest", "bottom"
 """)
 
+    # --- Example questions (your version) ---
     st.markdown("**Example questions you can ask:**")
     for q in [
         "Which Hitchcock films did I rate the highest?",
@@ -1463,55 +1465,64 @@ It works like a **keyword-based data assistant**:
         My_Ratings = pd.DataFrame()
         IMDB_Ratings = pd.DataFrame()
 
-    # --- Display editable logic block ---
-    logic_code = textwrap.dedent("""
-        # Keyword-based filtering and sorting logic
-
+    # --- Default editable logic (no comments) ---
+    logic_code = textwrap.dedent(r"""
         question_lower = user_question.lower()
         filtered = My_Ratings.copy()
+        question_tokens = set(re.findall(r"\b[\w']+\b", question_lower))
 
         genres = ["comedy", "horror", "action", "drama", "sci-fi", "thriller", "romance"]
         for g in genres:
-            if g in question_lower:
-                filtered = filtered[filtered['Genre'].str.lower().str.contains(g)]
+            if g in question_tokens or g in question_lower:
+                filtered = filtered[filtered['Genre'].str.lower().str.contains(g, na=False)]
                 break
 
-        
-        directors = filtered['Director'].dropna().unique()
-        for d in directors:
-            last_name = d.split()[-1].lower()
-            if last_name in question_lower:
-                filtered = filtered[filtered['Director'].str.contains(d, case=False, na=False)]
+        all_directors = My_Ratings['Director'].dropna().unique()
+        selected_director = None
+        for d in all_directors:
+            name_tokens = [p.lower() for p in re.findall(r"\b[\w']+\b", d)]
+            if any(token in question_tokens for token in name_tokens):
+                selected_director = d
                 break
 
-        
+        if selected_director:
+            filtered = filtered[filtered['Director'].str.contains(re.escape(selected_director), case=False, na=False)]
+
         sort_col = "IMDb Rating" if "imdb" in question_lower else "Your Rating"
-
-        
-        if any(w in question_lower for w in ["highest", "top", "best"]):
+        if any(w in question_tokens for w in ["highest", "top", "best"]):
             ascending = False
-        elif any(w in question_lower for w in ["lowest", "worst", "bottom"]):
+        elif any(w in question_tokens for w in ["lowest", "worst", "bottom"]):
             ascending = True
         else:
             ascending = False
     """)
 
+    # --- Show editable block ---
     st.markdown("#### 🔧 Filtering and Sorting Logic (editable)")
-    editable_code = st.text_area("Modify logic if you like:", logic_code, height=400)
+    editable_code = st.text_area("Modify logic if needed:", logic_code, height=360)
 
     # --- Question input ---
     user_question = st.text_input(
         "🎥 Ask a question:",
-        placeholder="e.g., 'Which of my comedy films by Spielberg have the highest rating?'"
+        placeholder="Which drama films did I rate the lowest?"
     )
 
     if user_question and not My_Ratings.empty:
-        # Execute logic block (advanced: optional safety controls)
-        exec(editable_code, globals(), locals())
+        exec_ns = {"My_Ratings": My_Ratings, "user_question": user_question, "re": re}
+        try:
+            exec(editable_code, exec_ns)
+        except Exception as e:
+            st.error(f"Error running logic: {e}")
+            exec_ns.setdefault("filtered", My_Ratings.copy())
+            exec_ns.setdefault("sort_col", "Your Rating")
+            exec_ns.setdefault("ascending", False)
 
-        # --- Display results ---
+        filtered = exec_ns.get("filtered", My_Ratings.copy())
+        sort_col = exec_ns.get("sort_col", "Your Rating")
+        ascending = exec_ns.get("ascending", False)
+
         if not filtered.empty:
             filtered_sorted = filtered.sort_values(by=sort_col, ascending=ascending)
             st.dataframe(filtered_sorted)
         else:
-            st.info("No matching films found. Try a different genre or director keyword.")
+            st.info("No matching films found. Try a different director or genre keyword.")
