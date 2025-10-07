@@ -1431,7 +1431,7 @@ Given movie features (IMDb rating, genre, director, year, votes), the model pred
 
 
     st.markdown("""
-This scenario allows you to ask **natural-language questions** about your personal film ratings and IMDb ratings.
+This scenario allows you to ask **natural-language questions** about my personal film ratings.
 
 - When asking about directors, include only the **director’s surname** (last name).  
 - You can also filter by genre (e.g., comedy, horror, drama).  
