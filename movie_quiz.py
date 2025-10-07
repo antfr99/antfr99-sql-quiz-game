@@ -1426,9 +1426,17 @@ Given movie features (IMDb rating, genre, director, year, votes), the model pred
    - One-hot encoding allows categorical variables like directors and genres to be used.  
    - Random forests are robust to overfitting and can generalize well to unseen movies.
 """)
-        
+
+
 # --- Scenario 9: Natural-Language Film Q&A Assistant (final version) ---
 
+if scenario.startswith("9"):
+    import streamlit as st
+    import pandas as pd
+    import textwrap
+    import re
+
+    st.subheader("🎬 9 – Natural-Language Film Q&A Assistant")
 
     st.markdown("""
 This scenario allows you to ask **natural-language questions** about my personal film ratings.
@@ -1517,4 +1525,4 @@ This scenario allows you to ask **natural-language questions** about my personal
             filtered_sorted = filtered.sort_values(by=sort_col, ascending=ascending)
             st.dataframe(filtered_sorted)
         else:
-            st.info("No matching films found. Try a differe
+            st.info("No matching films found. Try a different director surname or genre keyword.")
