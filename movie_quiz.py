@@ -21,7 +21,7 @@ st.set_page_config(
 
 st.title("IMDb/SQL/PYTHON Data Project 🎬")
 st.write("""
-This is an experimental project that integrates several Python libraries, including Pandas, PandasQL, NumPy, Streamlit, Scikit-learn, SciPy, TextBlob, Matplotlib, Seaborn, NetworkX, Sentence-Transformers and Requests. It also incorporates SQL, the OMDb API, AI, GitHub, and IMDb - Antonio Friguglietti
+This is a film data project that integrates several Python libraries, including Pandas, PandasQL, NumPy, Streamlit, Scikit-learn, SciPy, TextBlob, Matplotlib, Seaborn, NetworkX, Sentence-Transformers and Requests. It also incorporates SQL, OMDb API, AI, GitHub, and IMDb.
 """)
 
 st.markdown("""
@@ -99,11 +99,13 @@ scenario = st.radio(
         "6 – Review Analysis (Sentiment, Subjectivity)",
         "7 – Poster Image Analysis (OMDb API)",
         "8 – Graph Based Movie Relationships",
-        "9 – Predict My Ratings (ML)", 
-        "10 – Model Evaluation (Feature Importance)",
-        "11 – Feature Hypothesis Testing",
-        "12 – Semantic Genre & Recommendations (Deep Learning / NLP)",
-        "13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)",      
+        "9 – Q&A (Natural-Language Questions / Local SQL)",
+        "10 – Predict My Ratings (ML)", 
+        "11 – Model Evaluation (Feature Importance)",
+        "12 – Feature Hypothesis Testing",
+        "13 – Semantic Genre & Recommendations (Deep Learning / NLP)",
+        "14 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)",
+                
                 
     ]
 )
@@ -226,8 +228,8 @@ ORDER BY Decade, [IMDb Rating] DESC, [Num Votes] DESC;
 
 
 # --- Scenario 9: Python ML ---
-if scenario == "9 – Predict My Ratings (ML)":
-    st.header("9 – Predict My Ratings (ML)")
+if scenario == "10 – Predict My Ratings (ML)":
+    st.header("10 – Predict My Ratings (ML)")
     st.write("""
     Predict my ratings for unseen movies using a machine learning model.
 
@@ -620,9 +622,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# --- Scenario 8 ---
-if scenario == "10 – Model Evaluation (Feature Importance)":
-    st.header("10 – Model Evaluation: Feature Importance")
+# --- Scenario 11 ---
+if scenario == "11 – Model Evaluation (Feature Importance)":
+    st.header("11 – Model Evaluation: Feature Importance")
 
     st.write("""
     We analyze which features matter most for predicting **my movie ratings** using a Random Forest model.  
@@ -745,9 +747,9 @@ if scenario == "10 – Model Evaluation (Feature Importance)":
 
 
 
-# --- Scenario 11: Feature Hypothesis Testing ---
-if scenario == "11 – Feature Hypothesis Testing":
-    st.header("11 – Feature Hypothesis Testing & Predictions")
+# --- Scenario 12: Feature Hypothesis Testing ---
+if scenario == "12 – Feature Hypothesis Testing":
+    st.header("12 – Feature Hypothesis Testing & Predictions")
 
     st.markdown("""
     Select features to test if they **improve model predictions** for your ratings.
@@ -1157,9 +1159,9 @@ else:
 
 
 
-# --- Scenario 12: Deep Learning Semantic Genre Analysis (Dynamic) ---
-if scenario == "12 – Semantic Genre & Recommendations (Deep Learning / NLP)":
-    st.header("12 – Semantic Genre & Recommendations (Deep Learning / NLP)")
+# --- Scenario 13: Deep Learning Semantic Genre Analysis (Dynamic) ---
+if scenario == "13 – Semantic Genre & Recommendations (Deep Learning / NLP)":
+    st.header("13 – Semantic Genre & Recommendations (Deep Learning / NLP)")
     st.markdown("""
     This scenario uses **sentence embeddings** to determine the main genre of films by analyzing the plot.  
     The table shows:
@@ -1240,9 +1242,9 @@ if scenario == "12 – Semantic Genre & Recommendations (Deep Learning / NLP)":
             """)
 
 
-# --- Scenario 13: Live Ratings Monitor + Supervised ML Predictions (English only) ---
-if scenario == "13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)":
-    st.header("13 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)")
+# --- Scenario 14: Live Ratings Monitor + Supervised ML Predictions (English only) ---
+if scenario == "14 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)":
+    st.header("14 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)")
 
     st.markdown("""
 **MLOps + CI/CD + Monitoring (Brief)**  
@@ -1423,3 +1425,90 @@ Given movie features (IMDb rating, genre, director, year, votes), the model pred
    - One-hot encoding allows categorical variables like directors and genres to be used.  
    - Random forests are robust to overfitting and can generalize well to unseen movies.
 """)
+        
+
+
+
+
+# --- Scenario 9: Keyword / Local SQL Assistant ---
+if scenario.startswith("9"):
+    import streamlit as st
+    import pandas as pd
+
+    st.subheader("9 – Q&A (Natural-Language Questions / Local SQL)")
+
+    # --- Expanded explanation ---
+    st.markdown("""
+This scenario allows you to ask **natural-language questions** about my personal film ratings and IMDb ratings.  
+
+It works as a **local SQL/keyword assistant**, meaning:
+1. You can filter films by **genre** (e.g., comedy, horror, action) or by **director** (full name or last name).  
+2. You can indicate your intent with keywords like **highest**, **lowest**, **top**, or **worst**, which will determine how the results are sorted.  
+3. The system scans your question for **matching keywords** and applies them to your dataset to produce a sorted table of films.  
+
+**How it handles words in your question:**
+- Words not recognized as a genre, director, or sorting intent are ignored.  
+- Only genres, director names, and intent keywords influence the results.  
+""")
+
+    # --- Suggested example questions ---
+    st.markdown("**Example questions you can ask:**")
+    suggestions = [
+        "Which Hitchcock films did I rate the highest ?",
+        "Top films by Spielberg ?",
+        "Which drama films did I rate the lowest?"
+    ]
+    for q in suggestions:
+        st.write(f"- {q}")
+
+    # --- Load data ---
+    try:
+        My_Ratings = pd.read_excel("myratings.xlsx")
+        IMDB_Ratings = pd.read_excel("imdbratings.xlsx")
+    except Exception as e:
+        st.error(f"Error loading Excel files: {e}")
+        My_Ratings = pd.DataFrame()
+        IMDB_Ratings = pd.DataFrame()
+
+    # --- User question input ---
+    user_question = st.text_input(
+        "Ask a question :",
+        placeholder="e.g., 'Which of my comedy films by Spielberg have the highest rating?'"
+    )
+
+    if user_question and not My_Ratings.empty:
+        question_lower = user_question.lower()
+        filtered = My_Ratings.copy()
+
+        # --- Filter by genre ---
+        genres = ["comedy", "horror", "action", "drama", "sci-fi", "thriller", "romance"]
+        for g in genres:
+            if g in question_lower:
+                filtered = filtered[filtered['Genre'].str.lower().str.contains(g)]
+                break
+
+        # --- Filter by director (partial match on last name) ---
+        directors = filtered['Director'].dropna().unique()
+        for d in directors:
+            last_name = d.split()[-1].lower()
+            if last_name in question_lower:
+                filtered = filtered[filtered['Director'].str.contains(d, case=False, na=False)]
+                break
+
+        # --- Determine sort column ---
+        sort_col = "IMDb Rating" if "imdb" in question_lower else "Your Rating"
+
+        # --- Determine sort order based on intent keywords ---
+        if any(w in question_lower for w in ["highest", "top", "best"]):
+            ascending = False
+        elif any(w in question_lower for w in ["lowest", "worst", "bottom"]):
+            ascending = True
+        else:
+            ascending = False  # default
+
+        # --- Display results ---
+        if not filtered.empty:
+            filtered_sorted = filtered.sort_values(by=sort_col, ascending=ascending)
+            st.dataframe(filtered_sorted)
+        else:
+            st.info("No matching films found. Try a different genre or director keyword.")
