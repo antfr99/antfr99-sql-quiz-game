@@ -11,7 +11,6 @@ import logging
 import os
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.neighbors import NearestNeighbors
-import openai
 
 
 # --- Page Config ---
