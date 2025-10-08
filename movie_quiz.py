@@ -1531,56 +1531,74 @@ This scenario allows you to ask **natural-language questions** about my personal
             st.info("No matching films found. Try a different director surname or genre keyword.")
 
 
-# --- Scenario 15: AI Q&A via Cloud Service (Free, no token) ---
-if scenario == "15 – AI Q&A via Cloud Service":
-    import requests
 
-    st.subheader("🧠 Scenario 15 – AI Q&A via Cloud Service (GPT-2, Free)")
-    st.markdown("""
-This scenario connects my film data with a free cloud AI model.
-You can ask questions like:
+# --- Scenario 15: AI Q&A via Local GPT-2 ---
+
+if scenario.startswith("15"):
+    
+import streamlit as st
+import pandas as pd
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+
+# Example: replace these with your actual dataframes
+# My_Ratings = pd.DataFrame({"Title": ["Film A", "Film B"], "Your Rating": [8, 9]})
+# IMDB_Ratings = pd.DataFrame({"Title": ["Film A", "Film B"], "IMDb Rating": [7.5, 8.2]})
+
+st.subheader("🧠 Scenario 15 – AI Q&A via Local GPT-2")
+st.markdown("""
+Ask questions about your films. Example:
 - "Which of my rated films has the highest IMDb rating?"
 - "What genre do I seem to prefer?"
 - "Compare my ratings with IMDb averages."
-- "List underrated thrillers from the 1990s."
 """)
 
-    # Small text input box for your question
-    user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
+# Small text input box for your question
+user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
 
-    if st.button("Ask AI") and user_query.strip():
-        try:
-            # Prepare minimal data summary to send along with the query
-            summary_text = ""
-            if not My_Ratings.empty:
-                top_film = My_Ratings.loc[My_Ratings["Your Rating"].idxmax(), "Title"]
-                avg_rating = round(My_Ratings["Your Rating"].mean(), 1)
-                summary_text += f"My average rating is {avg_rating}. My top film is {top_film}. "
-            if not IMDB_Ratings.empty:
-                avg_imdb = round(IMDB_Ratings["IMDb Rating"].mean(), 1)
-                summary_text += f"The average IMDb rating across all films is {avg_imdb}."
+# Load GPT-2 model and tokenizer once
+@st.cache_resource
+def load_gpt2_model():
+    model_name = "gpt2"
+    tokenizer = GPT2Tokenizer.from_pretrained(model_name)
+    model = GPT2LMHeadModel.from_pretrained(model_name)
+    return tokenizer, model
 
-            prompt = f"{summary_text}\n\nQuestion: {user_query}\n\nAnswer:"
+tokenizer, model = load_gpt2_model()
 
-            # --- Call Hugging Face free GPT-2 model ---
-            API_URL = "https://api-inference.huggingface.co/models/gpt2"
-            headers = {}
-            payload = {"inputs": prompt, "parameters": {"max_new_tokens": 120}}
+if st.button("Ask AI") and user_query.strip():
+    try:
+        # Prepare minimal data summary
+        summary_text = ""
+        if "My_Ratings" in globals() and not My_Ratings.empty:
+            top_film = My_Ratings.loc[My_Ratings["Your Rating"].idxmax(), "Title"]
+            avg_rating = round(My_Ratings["Your Rating"].mean(), 1)
+            summary_text += f"My average rating is {avg_rating}. My top film is {top_film}. "
 
-            with st.spinner("Thinking..."):
-                response = requests.post(API_URL, headers=headers, json=payload)
-                result = response.json()
+        if "IMDB_Ratings" in globals() and not IMDB_Ratings.empty:
+            avg_imdb = round(IMDB_Ratings["IMDb Rating"].mean(), 1)
+            summary_text += f"The average IMDb rating across all films is {avg_imdb}. "
 
-            # Extract generated text
-            if isinstance(result, list) and "generated_text" in result[0]:
-                ai_answer = result[0]["generated_text"]
-            else:
-                ai_answer = str(result)
+        # Combine prompt
+        prompt = f"{summary_text}\nQuestion: {user_query}\nAnswer:"
 
-            # Show answer
-            st.write("### 💬 AI Answer")
-            st.write(ai_answer.strip())
+        # Encode and generate
+        inputs = tokenizer.encode(prompt, return_tensors="pt")
+        outputs = model.generate(
+            inputs, 
+            max_length=150, 
+            do_sample=True, 
+            top_k=50, 
+            top_p=0.95,
+            temperature=0.7,
+            num_return_sequences=1
+        )
 
-        except Exception as e:
-            st.error(f"Error contacting AI service: {e}")
+        # Decode and display
+        answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        st.write("### 💬 AI Answer")
+        # Only show the text after the prompt
+        answer_text = answer.replace(prompt, "").strip()
+        st.write(answer_text if answer_text else "I couldn't generate an answer.")
 
+    except Exception as e:
+        st.error(f"Error generating AI answer: {e}")
