@@ -22,20 +22,8 @@ st.set_page_config(
 
 st.title("IMDb/SQL/PYTHON Data Project 🎬")
 st.write("""
-This is a film data project that integrates several Python libraries, including Pandas, PandasQL, NumPy, Streamlit, Scikit-learn, SciPy, TextBlob, Matplotlib, Seaborn, NetworkX, Sentence-Transformers and Requests. It also incorporates SQL, OMDb API, AI, GitHub, and IMDb.
+This is a film/data project that integrates several Python libraries, including Pandas, PandasQL, NumPy, Streamlit, Scikit-learn, SciPy, TextBlob, Matplotlib, Seaborn, NetworkX, Sentence-Transformers and Requests. It also incorporates SQL, OMDb API, AI, GitHub, and IMDb.
 """)
-
-st.markdown("""
-### Introduction 🎥
-
-This project is designed to combine **SQL** and **Pandas** to explore film data in a structured way, while also experimenting with **machine learning** models for deeper insights.  
-
-I’m approaching this from two angles:  
-1. **Film Exploration** – Using IMDb ratings, my personal ratings, and vote data to highlight agreements, disagreements, and recommendations.  
-2. **Technical Exploration** – Demonstrating how different analytical tools (SQL queries, statistical tests, machine learning models, sentiment analysis , poster image analysis, etc ) can be applied to the same dataset to uncover new perspectives.  
- 
-""")
-
 
 # --- Load Excel files ---
 try:
@@ -106,7 +94,7 @@ scenario = st.radio(
         "12 – Feature Hypothesis Testing",
         "13 – Semantic Genre & Recommendations (Deep Learning / NLP)",
         "14 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)",
-        "15 – AI Q&A via Cloud Service"
+        "15 – AI Q&A via Local GPT-2"
                 
                 
     ]
@@ -1530,22 +1518,22 @@ This scenario allows you to ask **natural-language questions** about my personal
         else:
             st.info("No matching films found. Try a different director surname or genre keyword.")
 
-# --- Scenario 15: AI Q&A via Local GPT-2 ---
+# --- Scenario 15: AI Q&A via Local GPT-2 (Python + GPT-2 explanation) ---
 
 if scenario.startswith("15"):
 
     import torch
     from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
-    st.subheader("🧠 Scenario 15 – AI Q&A via Local GPT-2 / AI Q&A")
+    st.subheader("🧠 Scenario 15 – AI Q&A via Local GPT-2")
     st.markdown("""
     Ask questions about your films. Example:
     - "Which of my rated films has the highest IMDb rating?"
-    - "What genre do I seem to prefer?"
+    - "Which of my films has the lowest rating?"
     - "Compare my ratings with IMDb averages."
     """)
 
-    # --- Prepare merged dataset ---
+    # --- Merge datasets for easy lookup ---
     if not My_Ratings.empty and not IMDB_Ratings.empty:
         merged_ratings = My_Ratings.merge(
             IMDB_Ratings[['Movie ID', 'Title', 'IMDb Rating']],
@@ -1563,10 +1551,8 @@ if scenario.startswith("15"):
             how='left'
         )
 
-    # --- Small text input box ---
     user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
 
-    # --- Load GPT-2 model once ---
     @st.cache_resource
     def load_gpt2_model():
         model_name = "gpt2"
@@ -1576,29 +1562,48 @@ if scenario.startswith("15"):
 
     tokenizer, model = load_gpt2_model()
 
-    def prepare_summary(df):
+    # --- Function to compute the answer based on the query ---
+    def compute_answer(query, df):
+        query_lower = query.lower()
         if df.empty:
-            return "I have no film ratings data. "
-        summary = ""
-        # My ratings
-        if 'Your Rating' in df.columns and 'Title' in df.columns:
-            top_film = df.loc[df["Your Rating"].idxmax(), "Title"]
-            avg_rating = round(df["Your Rating"].mean(), 1)
-            summary += f"My average rating is {avg_rating}. My top film is {top_film}. "
-        # IMDb ratings
-        if 'IMDb Rating' in df.columns:
-            avg_imdb = round(df["IMDb Rating"].mean(), 1)
-            summary += f"The average IMDb rating across all films is {avg_imdb}. "
-        # Votes
-        if 'Num Votes' in df.columns:
-            avg_votes = int(df['Num Votes'].mean())
-            summary += f"The average number of votes per film is {avg_votes}. "
-        return summary
+            return "I don't have any film ratings data to answer this."
+        
+        # Highest IMDb rating
+        if "highest imdb" in query_lower:
+            row = df.loc[df['IMDb Rating'].idxmax()]
+            return f"The film with the highest IMDb rating is '{row['Title']}' ({row['IMDb Rating']})."
+
+        # Lowest IMDb rating
+        if "lowest imdb" in query_lower:
+            row = df.loc[df['IMDb Rating'].idxmin()]
+            return f"The film with the lowest IMDb rating is '{row['Title']}' ({row['IMDb Rating']})."
+
+        # Top personal rating
+        if "top-rated" in query_lower or "highest my rating" in query_lower:
+            row = df.loc[df['Your Rating'].idxmax()]
+            return f"Your top-rated film is '{row['Title']}' ({row['Your Rating']})."
+
+        # Lowest personal rating
+        if "lowest my rating" in query_lower:
+            row = df.loc[df['Your Rating'].idxmin()]
+            return f"Your lowest-rated film is '{row['Title']}' ({row['Your Rating']})."
+
+        # Average ratings
+        if "average" in query_lower:
+            avg_my = round(df['Your Rating'].mean(), 1) if 'Your Rating' in df.columns else None
+            avg_imdb = round(df['IMDb Rating'].mean(), 1) if 'IMDb Rating' in df.columns else None
+            return f"My average rating: {avg_my}, Average IMDb rating: {avg_imdb}."
+
+        # Fallback
+        return "I can't directly answer that question, but here is a summary of your ratings."
 
     if st.button("Ask AI") and user_query.strip():
         try:
-            summary_text = prepare_summary(merged_ratings)
-            prompt = f"{summary_text}\nQuestion: {user_query}\nAnswer:"
+            # Step 1: Compute structured answer from data
+            structured_answer = compute_answer(user_query, merged_ratings)
+
+            # Step 2: Let GPT-2 rephrase/explain it naturally
+            prompt = f"Explain this in a friendly way: {structured_answer}"
 
             inputs = tokenizer.encode(prompt, return_tensors="pt")
             outputs = model.generate(
@@ -1611,13 +1616,11 @@ if scenario.startswith("15"):
                 num_return_sequences=1
             )
 
-            answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            answer_text = answer.replace(prompt, "").strip()
+            explanation = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            explanation_text = explanation.replace(prompt, "").strip()
 
             st.write("### 💬 AI Answer")
-            st.write(answer_text if answer_text else "I couldn't generate an answer.")
+            st.write(explanation_text if explanation_text else structured_answer)
 
         except Exception as e:
             st.error(f"Error generating AI answer: {e}")
-
-
