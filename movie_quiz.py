@@ -1530,75 +1530,94 @@ This scenario allows you to ask **natural-language questions** about my personal
         else:
             st.info("No matching films found. Try a different director surname or genre keyword.")
 
-
-
 # --- Scenario 15: AI Q&A via Local GPT-2 ---
 
 if scenario.startswith("15"):
-    
-import streamlit as st
-import pandas as pd
-from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
-# Example: replace these with your actual dataframes
-# My_Ratings = pd.DataFrame({"Title": ["Film A", "Film B"], "Your Rating": [8, 9]})
-# IMDB_Ratings = pd.DataFrame({"Title": ["Film A", "Film B"], "IMDb Rating": [7.5, 8.2]})
+    import torch
+    from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
-st.subheader("🧠 Scenario 15 – AI Q&A via Local GPT-2")
-st.markdown("""
-Ask questions about your films. Example:
-- "Which of my rated films has the highest IMDb rating?"
-- "What genre do I seem to prefer?"
-- "Compare my ratings with IMDb averages."
-""")
+    st.subheader("🧠 Scenario 15 – AI Q&A via Local GPT-2 / AI Q&A")
+    st.markdown("""
+    Ask questions about your films. Example:
+    - "Which of my rated films has the highest IMDb rating?"
+    - "What genre do I seem to prefer?"
+    - "Compare my ratings with IMDb averages."
+    """)
 
-# Small text input box for your question
-user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
+    # --- Prepare merged dataset ---
+    if not My_Ratings.empty and not IMDB_Ratings.empty:
+        merged_ratings = My_Ratings.merge(
+            IMDB_Ratings[['Movie ID', 'Title', 'IMDb Rating']],
+            on='Movie ID',
+            how='left'
+        )
+    else:
+        merged_ratings = pd.DataFrame()
 
-# Load GPT-2 model and tokenizer once
-@st.cache_resource
-def load_gpt2_model():
-    model_name = "gpt2"
-    tokenizer = GPT2Tokenizer.from_pretrained(model_name)
-    model = GPT2LMHeadModel.from_pretrained(model_name)
-    return tokenizer, model
-
-tokenizer, model = load_gpt2_model()
-
-if st.button("Ask AI") and user_query.strip():
-    try:
-        # Prepare minimal data summary
-        summary_text = ""
-        if "My_Ratings" in globals() and not My_Ratings.empty:
-            top_film = My_Ratings.loc[My_Ratings["Your Rating"].idxmax(), "Title"]
-            avg_rating = round(My_Ratings["Your Rating"].mean(), 1)
-            summary_text += f"My average rating is {avg_rating}. My top film is {top_film}. "
-
-        if "IMDB_Ratings" in globals() and not IMDB_Ratings.empty:
-            avg_imdb = round(IMDB_Ratings["IMDb Rating"].mean(), 1)
-            summary_text += f"The average IMDb rating across all films is {avg_imdb}. "
-
-        # Combine prompt
-        prompt = f"{summary_text}\nQuestion: {user_query}\nAnswer:"
-
-        # Encode and generate
-        inputs = tokenizer.encode(prompt, return_tensors="pt")
-        outputs = model.generate(
-            inputs, 
-            max_length=150, 
-            do_sample=True, 
-            top_k=50, 
-            top_p=0.95,
-            temperature=0.7,
-            num_return_sequences=1
+    # Include votes if available
+    if not merged_ratings.empty and not Votes.empty and 'Num Votes' in Votes.columns:
+        merged_ratings = merged_ratings.merge(
+            Votes[['Movie ID','Num Votes']],
+            on='Movie ID',
+            how='left'
         )
 
-        # Decode and display
-        answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        st.write("### 💬 AI Answer")
-        # Only show the text after the prompt
-        answer_text = answer.replace(prompt, "").strip()
-        st.write(answer_text if answer_text else "I couldn't generate an answer.")
+    # --- Small text input box ---
+    user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
 
-    except Exception as e:
-        st.error(f"Error generating AI answer: {e}")
+    # --- Load GPT-2 model once ---
+    @st.cache_resource
+    def load_gpt2_model():
+        model_name = "gpt2"
+        tokenizer = GPT2Tokenizer.from_pretrained(model_name)
+        model = GPT2LMHeadModel.from_pretrained(model_name)
+        return tokenizer, model
+
+    tokenizer, model = load_gpt2_model()
+
+    def prepare_summary(df):
+        if df.empty:
+            return "I have no film ratings data. "
+        summary = ""
+        # My ratings
+        if 'Your Rating' in df.columns and 'Title' in df.columns:
+            top_film = df.loc[df["Your Rating"].idxmax(), "Title"]
+            avg_rating = round(df["Your Rating"].mean(), 1)
+            summary += f"My average rating is {avg_rating}. My top film is {top_film}. "
+        # IMDb ratings
+        if 'IMDb Rating' in df.columns:
+            avg_imdb = round(df["IMDb Rating"].mean(), 1)
+            summary += f"The average IMDb rating across all films is {avg_imdb}. "
+        # Votes
+        if 'Num Votes' in df.columns:
+            avg_votes = int(df['Num Votes'].mean())
+            summary += f"The average number of votes per film is {avg_votes}. "
+        return summary
+
+    if st.button("Ask AI") and user_query.strip():
+        try:
+            summary_text = prepare_summary(merged_ratings)
+            prompt = f"{summary_text}\nQuestion: {user_query}\nAnswer:"
+
+            inputs = tokenizer.encode(prompt, return_tensors="pt")
+            outputs = model.generate(
+                inputs,
+                max_length=150,
+                do_sample=True,
+                top_k=50,
+                top_p=0.95,
+                temperature=0.7,
+                num_return_sequences=1
+            )
+
+            answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            answer_text = answer.replace(prompt, "").strip()
+
+            st.write("### 💬 AI Answer")
+            st.write(answer_text if answer_text else "I couldn't generate an answer.")
+
+        except Exception as e:
+            st.error(f"Error generating AI answer: {e}")
+
+
