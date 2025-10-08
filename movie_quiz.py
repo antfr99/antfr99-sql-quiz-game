@@ -106,6 +106,7 @@ scenario = st.radio(
         "12 – Feature Hypothesis Testing",
         "13 – Semantic Genre & Recommendations (Deep Learning / NLP)",
         "14 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)",
+        "15 – AI Q&A via Cloud Service"
                 
                 
     ]
@@ -1528,3 +1529,58 @@ This scenario allows you to ask **natural-language questions** about my personal
             st.dataframe(filtered_sorted)
         else:
             st.info("No matching films found. Try a different director surname or genre keyword.")
+
+
+# --- Scenario 15: AI Q&A via Cloud Service (Free, no token) ---
+if scenario == "15 – AI Q&A via Cloud Service":
+    import requests
+
+    st.subheader("🧠 Scenario 15 – AI Q&A via Cloud Service (GPT-2, Free)")
+    st.markdown("""
+This scenario connects my film data with a free cloud AI model.
+You can ask questions like:
+- "Which of my rated films has the highest IMDb rating?"
+- "What genre do I seem to prefer?"
+- "Compare my ratings with IMDb averages."
+- "List underrated thrillers from the 1990s."
+""")
+
+    # Small text input box for your question
+    user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
+
+    if st.button("Ask AI") and user_query.strip():
+        try:
+            # Prepare minimal data summary to send along with the query
+            summary_text = ""
+            if not My_Ratings.empty:
+                top_film = My_Ratings.loc[My_Ratings["Your Rating"].idxmax(), "Title"]
+                avg_rating = round(My_Ratings["Your Rating"].mean(), 1)
+                summary_text += f"My average rating is {avg_rating}. My top film is {top_film}. "
+            if not IMDB_Ratings.empty:
+                avg_imdb = round(IMDB_Ratings["IMDb Rating"].mean(), 1)
+                summary_text += f"The average IMDb rating across all films is {avg_imdb}."
+
+            prompt = f"{summary_text}\n\nQuestion: {user_query}\n\nAnswer:"
+
+            # --- Call Hugging Face free GPT-2 model ---
+            API_URL = "https://api-inference.huggingface.co/models/gpt2"
+            headers = {}
+            payload = {"inputs": prompt, "parameters": {"max_new_tokens": 120}}
+
+            with st.spinner("Thinking..."):
+                response = requests.post(API_URL, headers=headers, json=payload)
+                result = response.json()
+
+            # Extract generated text
+            if isinstance(result, list) and "generated_text" in result[0]:
+                ai_answer = result[0]["generated_text"]
+            else:
+                ai_answer = str(result)
+
+            # Show answer
+            st.write("### 💬 AI Answer")
+            st.write(ai_answer.strip())
+
+        except Exception as e:
+            st.error(f"Error contacting AI service: {e}")
+
