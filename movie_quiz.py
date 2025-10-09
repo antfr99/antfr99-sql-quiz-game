@@ -1519,7 +1519,7 @@ This scenario allows you to ask **natural-language questions** about my personal
             st.info("No matching films found. Try a different director surname or genre keyword.")
 
 
-# --- Scen 15
+# --- Scenario 15
 
 if scenario.startswith("15"):
     import streamlit as st
@@ -1554,7 +1554,7 @@ if scenario.startswith("15"):
 
     tokenizer, model = load_gpt2_medium()
 
-    # --- Query Router: compute answers from Excel ---
+    # --- Build structured answer including all relevant movies ---
     def query_router(query, df):
         q = query.lower()
         if df.empty:
@@ -1563,15 +1563,19 @@ if scenario.startswith("15"):
         def match(phrases):
             return any(difflib.get_close_matches(q, phrases, n=1, cutoff=0.6))
 
-        # Highest rating
+        # Top-rated
         if match(["highest rating", "top-rated", "best film"]):
-            row = df.loc[df['Your Rating'].idxmax()]
-            return f"Your top-rated film is '{row['Title']}' ({row['Your Rating']})."
+            top_rating = df['Your Rating'].max()
+            top_movies = df[df['Your Rating'] == top_rating]
+            titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
+            return f"Your top-rated film(s): {', '.join(titles)}."
 
-        # Lowest rating
+        # Lowest-rated
         if match(["lowest rating", "worst film"]):
-            row = df.loc[df['Your Rating'].idxmin()]
-            return f"Your lowest-rated film is '{row['Title']}' ({row['Your Rating']})."
+            low_rating = df['Your Rating'].min()
+            low_movies = df[df['Your Rating'] == low_rating]
+            titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
+            return f"Your lowest-rated film(s): {', '.join(titles)}."
 
         # Average rating
         if match(["average", "mean rating"]):
@@ -1582,32 +1586,31 @@ if scenario.startswith("15"):
         if match(["genre", "favorite genre"]):
             genre_avg = df.groupby('Genre')['Your Rating'].mean().sort_values(ascending=False)
             top_genre = genre_avg.idxmax()
-            return f"You rate '{top_genre}' films highest ({round(genre_avg[top_genre],1)})."
+            return f"Your favorite genre is '{top_genre}' (average rating {round(genre_avg[top_genre],1)})."
 
         # Favorite director
         if match(["director", "favorite director"]):
             director_avg = df.groupby('Director')['Your Rating'].mean().sort_values(ascending=False)
             top_director = director_avg.idxmax()
-            return f"You rate films by '{top_director}' highest ({round(director_avg[top_director],1)})."
+            return f"Your favorite director is '{top_director}' (average rating {round(director_avg[top_director],1)})."
 
         # Fallback: top 3 films
         top = df.sort_values(by='Your Rating', ascending=False).head(3)
-        summary = "Your top 3 rated films:\n"
-        for _, row in top.iterrows():
-            summary += f"- {row['Title']} ({row['Your Rating']})\n"
-        return summary.strip()
+        titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top.iterrows()]
+        return f"Your top 3 films are: {', '.join(titles)}."
 
-    # --- GPT-2 Explanation: only elaborates structured answer ---
+    # --- GPT-2 Explanation: strict no hallucination ---
     def explain_with_gpt2(structured_answer, user_query):
         prompt = f"""
 User query: {user_query}
 Structured answer: {structured_answer}
-Explain this clearly and in a friendly way without adding any movies not in the structured answer:
+Explain this clearly and in a friendly way.
+Do NOT mention any movies not in the structured answer.
 """
         inputs = tokenizer.encode(prompt, return_tensors="pt")
         outputs = model.generate(
             inputs,
-            max_length=150,
+            max_length=200,
             do_sample=True,
             top_k=50,
             top_p=0.95,
@@ -1615,10 +1618,9 @@ Explain this clearly and in a friendly way without adding any movies not in the 
             num_return_sequences=1
         )
         explanation = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        # Strip the prompt to avoid repeating it
         return explanation.replace(prompt, "").strip()
 
-    # --- Streamlit Interaction ---
+    # --- Streamlit UI ---
     user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
     if st.button("Ask AI") and user_query.strip():
         try:
