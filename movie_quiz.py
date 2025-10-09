@@ -1523,14 +1523,14 @@ This scenario allows you to ask **natural-language questions** about my personal
 
 
 if scenario.startswith("15"):
+    import streamlit as st
+    import pandas as pd
+    import torch
+    from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
-import streamlit as st
-import pandas as pd
-import torch
-from transformers import GPT2LMHeadModel, GPT2Tokenizer
+    st.subheader("🧠15 – AI via Local GPT-2")
+    # ... rest of your Scenario 15 logic, all indented
 
-# --- Page Setup ---
-st.subheader("🧠15 – AI via Local GPT-2")
 st.markdown("""
 Ask questions about your films using natural language. Examples:
 - "Which of my rated films has the highest IMDb rating?"
