@@ -1521,233 +1521,103 @@ This scenario allows you to ask **natural-language questions** about my personal
 
 # --- Scenario 15 # 
 
+# --- Scenario 15: AI via Public GPT-2 Medium (My Ratings Only) ---
 if scenario.startswith("15"):
     import streamlit as st
     import pandas as pd
-    import re
+    from transformers import pipeline
     import difflib
-    from difflib import SequenceMatcher
+    import numpy as np
 
-    st.subheader("🧠 15 – AI via GPT-2 Medium (My Ratings Only)")
+    st.subheader("🧠 15 – AI via Public GPT-2 Medium (My Ratings Only)")
+
     st.markdown("""
-    Ask questions about your films using natural language. Examples:
-    - "Which of my rated films has the highest rating?"
-    - "What’s my average rating by genre?"
-    - "Which director do I rate highest?"
-    - "What rating did I give The Matrix?"
-    - "Which films did I rate 9?"
-    - "What’s my average rating for horror films?"
-    - "What was my top-rated film in 2020?"
-    """)
+Ask questions about your own film ratings using natural language.
 
-    # --- Load My Ratings from GitHub ---
-    github_url = "https://raw.githubusercontent.com/antfr99/antfr99-sql-quiz-game/main/myratings.xlsx"
+**Examples**
+- "Which of my rated films has the highest rating?"
+- "What’s my average rating by genre?"
+- "Which director do I rate highest?"
+""")
 
-    @st.cache_data
-    def load_ratings(url):
-        try:
-            df = pd.read_excel(url)
-            df.columns = df.columns.str.strip()
-            return df
-        except Exception as e:
-            st.error(f"Error loading My Ratings from GitHub: {e}")
-            return pd.DataFrame()
+    # --- Load local Excel ---
+    try:
+        myratings = pd.read_excel("myratings.xlsx")
+        myratings.columns = [c.strip() for c in myratings.columns]
+    except Exception as e:
+        st.error(f"Error loading myratings.xlsx: {e}")
+        st.stop()
 
-    My_Ratings = load_ratings(github_url)
+    # --- Prepare dataframe ---
+    df = myratings.rename(columns=lambda x: x.strip().lower().replace(" ", "_"))
+    if "your_rating" not in df.columns:
+        st.error("Missing column 'Your Rating' in myratings.xlsx")
+        st.stop()
 
-    # --- Helpers for normalization and matching ---
-    def normalize_title(s: str) -> str:
-        s = str(s)
-        # remove year in parentheses and punctuation, lower
-        s = re.sub(r"\(\d{4}\)", "", s)
-        s = re.sub(r"[^\w\s]", " ", s)
-        s = re.sub(r"\s+", " ", s).strip().lower()
-        return s
+    # --- Helper: fuzzy title match ---
+    def find_title_match(user_text):
+        titles = df["title"].astype(str).tolist()
+        matches = difflib.get_close_matches(user_text, titles, n=1, cutoff=0.6)
+        return matches[0] if matches else None
 
-    def extract_quoted_or_title_phrase(q: str) -> str | None:
-        # Prefer quoted segment
-        m = re.search(r'"([^"]+)"|\'([^\']+)\'', q)
-        if m:
-            return (m.group(1) or m.group(2)).strip().lower()
-        # Else, try after keywords
-        m2 = re.search(r"(rate|rating|rated)\s+(.*)", q)
-        if m2:
-            phrase = m2.group(2)
-            # stop at question mark or "?" etc.
-            phrase = re.split(r"[?.,;:]", phrase)[0]
-            phrase = normalize_title(phrase)
-            return phrase if phrase else None
-        return None
+    # --- Core logic for data questions ---
+    def query_router(question):
+        q = question.lower()
 
-    def best_title_match(query: str, d: pd.DataFrame) -> str | None:
-        if "Title" not in d.columns:
-            return None
-        titles = d["Title"].dropna().astype(str).tolist()
-        # Build normalized map
-        norm_map = {t: normalize_title(t) for t in titles}
-        q_norm = normalize_title(query)
-
-        # If the query contains a quoted/explicit phrase, use it
-        explicit = extract_quoted_or_title_phrase(query)
-        probe = explicit or q_norm
-
-        # Try exact normalized match
-        exact_candidates = [t for t, n in norm_map.items() if n == probe]
-        if exact_candidates:
-            return exact_candidates[0]
-
-        # Try substring on normalized
-        sub_candidates = [t for t, n in norm_map.items() if probe in n or n in probe]
-        if sub_candidates:
-            # choose longest normalized candidate (more specific)
-            return max(sub_candidates, key=lambda t: len(norm_map[t]))
-
-        # Fuzzy: use SequenceMatcher on normalized strings
-        scored = [(t, SequenceMatcher(None, probe, norm_map[t]).ratio()) for t in titles]
-        scored.sort(key=lambda x: x[1], reverse=True)
-        if scored and scored[0][1] >= 0.6:
-            return scored[0][0]
-        return None
-
-    # --- Intent detection (for routing the query) ---
-    def intent(query: str) -> str:
-        q = query.lower()
+        # Highest-rated film
         if "highest" in q and "rating" in q:
-            return "top"
+            best = df.loc[df["your_rating"].idxmax()]
+            return f"Your highest-rated film is **{best['title']}** with a score of **{best['your_rating']}**."
+
+        # Lowest-rated film
         if "lowest" in q or "worst" in q:
-            return "bottom"
-        if "average" in q or "mean" in q:
-            return "average"
-        if "genre" in q:
-            return "genre"
-        if "director" in q:
-            return "director"
-        if re.search(r"\b(19|20)\d{2}\b", q):  # detect a year
-            return "year"
-        return "fallback"
+            worst = df.loc[df["your_rating"].idxmin()]
+            return f"Your lowest-rated film is **{worst['title']}** with a score of **{worst['your_rating']}**."
 
-    # --- Structured answer generator ---
-    def query_router(query, df):
-        if df.empty:
-            return "No film ratings data available."
-
-        required_cols = ["Your Rating", "Title"]
-        if not all(col in df.columns for col in required_cols):
-            return "Ratings data is missing required columns."
-
-        d = df.dropna(subset=["Your Rating"]).copy()
-        if d.empty:
-            return "No valid ratings available."
-
-        # Normalize/Clean Data
-        d["Title"] = d["Title"].astype(str)
-        if "Genre" in d.columns:
-            d["Genre"] = d["Genre"].astype(str).str.strip()
-        if "Director" in d.columns:
-            d["Director"] = d["Director"].astype(str).str.strip()
-        if "Year" in d.columns:
-            d["Year"] = pd.to_numeric(d["Year"], errors='coerce')
-
-        q = query.lower()
-        i = intent(q)
-
-        # --- 1. Specific Title lookup (robust) ---
-        title_match = best_title_match(q, d)
-        if title_match is not None:
-            # In case multiple rows exist (duplicates), show all ratings for that exact title string
-            rows = d[d["Title"] == title_match]
-            ratings = rows["Your Rating"].tolist()
-            if len(ratings) == 1:
-                return f"You rated '{title_match}' a {ratings[0]}."
+        # Average by genre
+        if "average" in q and "genre" in q:
+            if "genre" in df.columns:
+                avg = df.groupby("genre")["your_rating"].mean().round(2)
+                return "Your average rating by genre:\n" + avg.to_string()
             else:
-                return f"You rated '{title_match}' {', '.join(map(str, ratings))}."
+                return "No genre column found in your ratings file."
 
-        # --- 2. Year-specific queries ---
-        year_match = re.search(r"\b(19|20)\d{2}\b", q)
-        if year_match and "Year" in d.columns and d["Year"].notna().any():
-            year_val = int(year_match.group(0))
-            subset = d[d["Year"] == year_val]
-            if not subset.empty:
-                if "average" in q or "mean" in q:
-                    avg = round(subset["Your Rating"].mean(), 1)
-                    return f"Your average rating in {year_val} was {avg}."
-                if "highest" in q or "top" in q:
-                    top_rating = subset["Your Rating"].max()
-                    top_movies = subset[subset["Your Rating"] == top_rating]
-                    titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
-                    return f"Your top-rated film(s) in {year_val}: {', '.join(titles)}."
-                if "lowest" in q or "worst" in q:
-                    low_rating = subset["Your Rating"].min()
-                    low_movies = subset[subset["Your Rating"] == low_rating]
-                    titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
-                    return f"Your lowest-rated film(s) in {year_val}: {', '.join(titles)}."
-                films = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in subset.iterrows()]
-                return f"Films you rated in {year_val}: {', '.join(films)}."
+        # Average rating overall
+        if "average" in q:
+            return f"Your overall average rating is **{df['your_rating'].mean():.2f}**."
 
-        # --- 3. Specific Rating lookup ---
-        # Prefer rating-only intent when query contains a clean number and not a year
-        rating_match = re.search(r"\b([0-9]{1,2})\b", q)
-        if rating_match and not year_match:
-            val = int(rating_match.group(1))
-            films = d.loc[d["Your Rating"] == val, "Title"].tolist()
-            if films:
-                return f"Films you rated {val}: {', '.join(films)}."
+        # Specific film lookup
+        title = find_title_match(question)
+        if title:
+            r = df.loc[df["title"] == title, "your_rating"].values[0]
+            return f"You rated **{title}** a **{r}**."
 
-        # --- 4. Genre-specific queries (support multi-genre cells) ---
-        if "Genre" in d.columns:
-            genre_df = d.assign(Genre=d['Genre'].str.split(',\s*')).explode('Genre')
-            genre_df["Genre"] = genre_df["Genre"].str.strip()
-            for g in genre_df["Genre"].dropna().unique():
-                if str(g).lower() in q:
-                    subset = genre_df[genre_df["Genre"].str.lower() == str(g).lower()]
-                    if subset.empty:
-                        continue
-                    if "average" in q or "mean" in q:
-                        avg = round(subset["Your Rating"].mean(), 1)
-                        return f"Your average rating for {g} films is {avg}."
-                    if "highest" in q or "top" in q:
-                        top_rating = subset["Your Rating"].max()
-                        top_movies = subset[subset["Your Rating"] == top_rating]
-                        titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
-                        return f"Your top-rated {g} film(s): {', '.join(titles)}."
-                    if "lowest" in q or "worst" in q:
-                        low_rating = subset["Your Rating"].min()
-                        low_movies = subset[subset["Your Rating"] == low_rating]
-                        titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
-                        return f"Your lowest-rated {g} film(s): {', '.join(titles)}."
+        return None  # fallback to GPT-2
 
-        # --- 5. General intents ---
-        if i == "top":
-            top_rating = d["Your Rating"].max()
-            top_movies = d[d["Your Rating"] == top_rating]
-            titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
-            return f"Your top-rated film(s): {', '.join(titles)}."
-        if i == "bottom":
-            low_rating = d["Your Rating"].min()
-            low_movies = d[d["Your Rating"] == low_rating]
-            titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
-            return f"Your lowest-rated film(s): {', '.join(titles)}."
-        if i == "average":
-            avg = round(d["Your Rating"].mean(), 1)
-            return f"Your average rating is {avg}."
-        if i == "genre" and "Genre" in d.columns:
-            g_exploded = d.assign(Genre=d['Genre'].str.split(',\s*')).explode('Genre').dropna(subset=["Genre"])
-            if g_exploded.empty:
-                return "No genre data available."
-            genre_avg = g_exploded.groupby(g_exploded["Genre"].str.strip())["Your Rating"].mean().sort_values(ascending=False)
-            top_genre = genre_avg.index[0]
-            return f"Your favorite genre is '{top_genre}' (average rating {round(genre_avg.iloc[0],1)})."
-        if i == "director" and "Director" in d.columns:
-            g = d.dropna(subset=["Director"])
-            if g.empty:
-                return "No director data available."
-            director_avg = g.groupby(g['Director'].str.lower())["Your Rating"].mean()
-            top_avg = director_avg.max()
-            top_directors_lower = director_avg[director_avg == top_avg].index.tolist()
-            original_directors = d[d['Director'].str.lower().isin(top_directors_lower)]['Director'].unique().tolist()
-            director_names = ', '.join([f"'{name}'" for name in original_directors])
-            return f"Your favorite director(s) is/are {director_names} (average rating {round(top_avg,1)})."
+    # --- Hugging Face GPT-2 Medium (no token required) ---
+    @st.cache_resource
+    def load_model():
+        return pipeline("text-generation", model="gpt2-medium")
 
-        # --- 6. Fallback: top 3 films ---
-        top3 = d.sort_values(by="Your Rating", ascending=False).head(3)
-        titles =
+    generator = load_model()
+
+    # --- UI ---
+    user_q = st.text_input("💬 Ask the AI something:")
+
+    if user_q:
+        st.write("### 💬 AI Answer")
+        answer = query_router(user_q)
+
+        if answer:
+            st.success(answer)
+        else:
+            # fallback to GPT-2 completion
+            gpt_output = generator(
+                user_q,
+                max_length=120,
+                num_return_sequences=1,
+                do_sample=True,
+                temperature=0.7,
+                pad_token_id=50256,
+            )[0]["generated_text"]
+            st.write(gpt_output.split(". ")[0] + ".")
