@@ -1519,8 +1519,7 @@ This scenario allows you to ask **natural-language questions** about my personal
             st.info("No matching films found. Try a different director surname or genre keyword.")
 
 
-# --- Scenario 15: AI Q&A via Local GPT-2 ---
-
+# --- Scen 15
 
 if scenario.startswith("15"):
     import streamlit as st
@@ -1529,7 +1528,7 @@ if scenario.startswith("15"):
     from transformers import GPT2LMHeadModel, GPT2Tokenizer
     import difflib
 
-    st.subheader("🧠 15 – AI via Public GPT-2 Medium (My Ratings Only)")
+    st.subheader("🧠 15 – AI via GPT-2 Medium (My Ratings Only)")
     st.markdown("""
     Ask questions about your films using natural language. Examples:
     - "Which of my rated films has the highest rating?"
@@ -1555,7 +1554,7 @@ if scenario.startswith("15"):
 
     tokenizer, model = load_gpt2_medium()
 
-    # --- Query Router ---
+    # --- Query Router: compute answers from Excel ---
     def query_router(query, df):
         q = query.lower()
         if df.empty:
@@ -1564,12 +1563,12 @@ if scenario.startswith("15"):
         def match(phrases):
             return any(difflib.get_close_matches(q, phrases, n=1, cutoff=0.6))
 
-        # Top-rated
+        # Highest rating
         if match(["highest rating", "top-rated", "best film"]):
             row = df.loc[df['Your Rating'].idxmax()]
             return f"Your top-rated film is '{row['Title']}' ({row['Your Rating']})."
 
-        # Lowest-rated
+        # Lowest rating
         if match(["lowest rating", "worst film"]):
             row = df.loc[df['Your Rating'].idxmin()]
             return f"Your lowest-rated film is '{row['Title']}' ({row['Your Rating']})."
@@ -1598,8 +1597,13 @@ if scenario.startswith("15"):
             summary += f"- {row['Title']} ({row['Your Rating']})\n"
         return summary.strip()
 
-    # --- GPT-2 Explanation ---
-    def explain_with_gpt2(prompt):
+    # --- GPT-2 Explanation: only elaborates structured answer ---
+    def explain_with_gpt2(structured_answer, user_query):
+        prompt = f"""
+User query: {user_query}
+Structured answer: {structured_answer}
+Explain this clearly and in a friendly way without adding any movies not in the structured answer:
+"""
         inputs = tokenizer.encode(prompt, return_tensors="pt")
         outputs = model.generate(
             inputs,
@@ -1611,28 +1615,19 @@ if scenario.startswith("15"):
             num_return_sequences=1
         )
         explanation = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        # Strip the prompt to avoid repeating it
         return explanation.replace(prompt, "").strip()
 
-    # --- Streamlit UI ---
+    # --- Streamlit Interaction ---
     user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
     if st.button("Ask AI") and user_query.strip():
         try:
-            # Compute structured answer from your Excel
             structured_answer = query_router(user_query, My_Ratings)
-
-            # Feed structured answer to GPT-2 for friendly explanation
-            prompt = f"""
-You are a friendly film assistant. The user has rated films with these fields:
-Title, Your Rating, URL, IMDb Rating, Runtime (mins), Year, Director, Genre.
-
-User query: {user_query}
-Structured answer: {structured_answer}
-Explain this clearly and in a friendly way:
-"""
-            explanation = explain_with_gpt2(prompt)
-
+            explanation = explain_with_gpt2(structured_answer, user_query)
             st.write("### 💬 AI Answer")
             st.write(explanation if explanation else structured_answer)
-
         except Exception as e:
             st.error(f"Error generating AI answer: {e}")
+
+
+
