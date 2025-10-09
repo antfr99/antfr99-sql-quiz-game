@@ -1527,9 +1527,8 @@ if scenario.startswith("15"):
     import torch
     from transformers import GPT2LMHeadModel, GPT2Tokenizer
     import difflib
-    import os
 
-    st.subheader("🧠 15 – AI via Hugging Face GPT-2 (My Ratings Only)")
+    st.subheader("🧠 15 – AI via Public GPT-2 Medium (My Ratings Only)")
     st.markdown("""
     Ask questions about your films using natural language. Examples:
     - "Which of my rated films has the highest rating?"
@@ -1545,24 +1544,15 @@ if scenario.startswith("15"):
         st.error(f"Error loading My Ratings: {e}")
         My_Ratings = pd.DataFrame()
 
-    # --- Load GPT-2 from Hugging Face with token ---
+    # --- Load GPT-2 Medium (Public Model) ---
     @st.cache_resource
-    def load_gpt2_hf():
-        token = os.environ.get("HUGGINGFACEHUB_API_TOKEN")
-        if not token:
-            st.error("Hugging Face token not found. Set it in Streamlit Secrets.")
-            return None, None
-        tokenizer = GPT2Tokenizer.from_pretrained(
-            "antfr99/gpt2-finetuned-films", use_auth_token=token
-        )
-        model = GPT2LMHeadModel.from_pretrained(
-            "antfr99/gpt2-finetuned-films", use_auth_token=token
-        )
+    def load_gpt2_public():
+        model_name = "openai-community/gpt2-medium"
+        tokenizer = GPT2Tokenizer.from_pretrained(model_name)
+        model = GPT2LMHeadModel.from_pretrained(model_name)
         return tokenizer, model
 
-    tokenizer, model = load_gpt2_hf()
-    if tokenizer is None or model is None:
-        st.stop()  # Stop if model failed to load
+    tokenizer, model = load_gpt2_public()
 
     # --- Query Router ---
     def query_router(query, df):
@@ -1573,29 +1563,34 @@ if scenario.startswith("15"):
         def match(phrases):
             return any(difflib.get_close_matches(q, phrases, n=1, cutoff=0.6))
 
+        # Highest rating
         if match(["highest rating", "top-rated", "best film"]):
             row = df.loc[df['Your Rating'].idxmax()]
             return f"Your top-rated film is '{row.get('Title','Unknown')}' ({row['Your Rating']})."
 
+        # Lowest rating
         if match(["lowest rating", "worst film"]):
             row = df.loc[df['Your Rating'].idxmin()]
             return f"Your lowest-rated film is '{row.get('Title','Unknown')}' ({row['Your Rating']})."
 
+        # Average rating
         if match(["average", "mean rating"]):
             avg_my = round(df['Your Rating'].mean(), 1)
             return f"Your average rating is {avg_my}."
 
+        # Favorite genre
         if match(["genre", "favorite genre"]):
             genre_avg = df.groupby('Genre')['Your Rating'].mean().sort_values(ascending=False)
             top_genre = genre_avg.idxmax()
             return f"You rate '{top_genre}' films highest ({round(genre_avg[top_genre],1)})."
 
+        # Favorite director
         if match(["director", "favorite director"]):
             director_avg = df.groupby('Director')['Your Rating'].mean().sort_values(ascending=False)
             top_director = director_avg.idxmax()
             return f"You rate films by '{top_director}' highest ({round(director_avg[top_director],1)})."
 
-        # Fallback top 3
+        # Top 3 fallback
         top = df.sort_values(by='Your Rating', ascending=False).head(3)
         summary = "Your top 3 rated films:\n"
         for _, row in top.iterrows():
@@ -1617,7 +1612,7 @@ if scenario.startswith("15"):
         explanation = tokenizer.decode(outputs[0], skip_special_tokens=True)
         return explanation.replace(prompt, "").strip()
 
-    # --- Streamlit Interaction ---
+    # --- Streamlit User Interaction ---
     user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
     if st.button("Ask AI") and user_query.strip():
         try:
