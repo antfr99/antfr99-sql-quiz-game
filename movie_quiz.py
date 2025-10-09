@@ -1554,7 +1554,7 @@ if scenario.startswith("15"):
     @st.cache_resource
     def load_gpt2():
         tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-        model = GPT2LMHeadModel.from_pretrained("gpt2")
+        model = GPT2LMHeadModel.from_pretrained("./gpt2_finetuned")
         return tokenizer, model
 
     tokenizer, model = load_gpt2()
