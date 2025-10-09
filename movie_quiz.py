@@ -1522,123 +1522,106 @@ This scenario allows you to ask **natural-language questions** about my personal
 # --- Scenario 15: AI Q&A via Local GPT-2 ---
 
 
+
 if scenario.startswith("15"):
-    import streamlit as st
-    import pandas as pd
     import torch
     from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
     st.subheader("🧠15 – AI via Local GPT-2")
-    # ... rest of your Scenario 15 logic, all indented
+    st.markdown("""
+    Ask questions about your films using natural language. Examples:
+    - "Which of my rated films has the highest IMDb rating?"
+    - "What’s my average rating by genre?"
+    - "Which director do I rate highest?"
+    """)
 
-st.markdown("""
-Ask questions about your films using natural language. Examples:
-- "Which of my rated films has the highest IMDb rating?"
-- "What’s my average rating by genre?"
-- "Which director do I rate highest?"
-""")
+    # --- Merge My Ratings with IMDb and Votes ---
+    for df in [IMDB_Ratings, My_Ratings, Votes]:
+        df.columns = df.columns.str.strip()
 
-# --- Load Data ---
-@st.cache_data
-def load_data():
-    try:
-        imdb = pd.read_excel("imdbratings.xlsx")
-        my = pd.read_excel("myratings.xlsx")
-        votes = pd.read_excel("votes.xlsx")
-    except:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-    return imdb, my, votes
+    def merge_sources(imdb, my, votes):
+        if imdb.empty or my.empty:
+            return pd.DataFrame()
+        merged = my.merge(imdb[['Movie ID', 'Title', 'IMDb Rating']], on='Movie ID', how='left')
+        if not votes.empty and 'Num Votes' in votes.columns:
+            merged = merged.merge(votes[['Movie ID', 'Num Votes']], on='Movie ID', how='left')
+        return merged
 
-IMDB_Ratings, My_Ratings, Votes = load_data()
+    merged_ratings = merge_sources(IMDB_Ratings, My_Ratings, Votes)
 
-# --- Clean Columns ---
-for df in [IMDB_Ratings, My_Ratings, Votes]:
-    df.columns = df.columns.str.strip()
+    # --- Load GPT-2 ---
+    @st.cache_resource
+    def load_gpt2():
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        model = GPT2LMHeadModel.from_pretrained("gpt2")
+        return tokenizer, model
 
-# --- Merge Data ---
-def merge_sources(imdb, my, votes):
-    if imdb.empty or my.empty:
-        return pd.DataFrame()
-    merged = my.merge(imdb[['Movie ID', 'Title', 'IMDb Rating']], on='Movie ID', how='left')
-    if not votes.empty and 'Num Votes' in votes.columns:
-        merged = merged.merge(votes[['Movie ID', 'Num Votes']], on='Movie ID', how='left')
-    return merged
+    tokenizer, model = load_gpt2()
 
-merged_ratings = merge_sources(IMDB_Ratings, My_Ratings, Votes)
+    # --- Query Router ---
+    def query_router(query, df):
+        q = query.lower()
+        if df.empty:
+            return "No film ratings data available."
 
-# --- Load GPT-2 Model ---
-@st.cache_resource
-def load_gpt2():
-    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-    model = GPT2LMHeadModel.from_pretrained("gpt2")
-    return tokenizer, model
+        if "highest imdb" in q and 'IMDb Rating' in df.columns:
+            row = df.loc[df['IMDb Rating'].idxmax()]
+            return f"The highest IMDb-rated film is '{row['Title']}' with a rating of {row['IMDb Rating']}."
 
-tokenizer, model = load_gpt2()
+        if "lowest imdb" in q and 'IMDb Rating' in df.columns:
+            row = df.loc[df['IMDb Rating'].idxmin()]
+            return f"The lowest IMDb-rated film is '{row['Title']}' with a rating of {row['IMDb Rating']}."
 
-# --- Query Router ---
-def query_router(query, df):
-    q = query.lower()
-    if df.empty:
-        return "No film ratings data available."
+        if "highest my rating" in q or "top-rated" in q:
+            row = df.loc[df['Your Rating'].idxmax()]
+            return f"Your top-rated film is '{row['Title']}' with a rating of {row['Your Rating']}."
 
-    if "highest imdb" in q:
-        row = df.loc[df['IMDb Rating'].idxmax()]
-        return f"The highest IMDb-rated film is '{row['Title']}' with a rating of {row['IMDb Rating']}."
+        if "lowest my rating" in q:
+            row = df.loc[df['Your Rating'].idxmin()]
+            return f"Your lowest-rated film is '{row['Title']}' with a rating of {row['Your Rating']}."
 
-    if "lowest imdb" in q:
-        row = df.loc[df['IMDb Rating'].idxmin()]
-        return f"The lowest IMDb-rated film is '{row['Title']}' with a rating of {row['IMDb Rating']}."
+        if "average" in q:
+            avg_my = round(df['Your Rating'].mean(), 1)
+            avg_imdb = round(df['IMDb Rating'].mean(), 1)
+            return f"Your average rating is {avg_my}, and the average IMDb rating is {avg_imdb}."
 
-    if "highest my rating" in q or "top-rated" in q:
-        row = df.loc[df['Your Rating'].idxmax()]
-        return f"Your top-rated film is '{row['Title']}' with a rating of {row['Your Rating']}."
+        if "most voted" in q and 'Num Votes' in df.columns:
+            row = df.loc[df['Num Votes'].idxmax()]
+            return f"The most voted film is '{row['Title']}' with {row['Num Votes']} votes."
 
-    if "lowest my rating" in q:
-        row = df.loc[df['Your Rating'].idxmin()]
-        return f"Your lowest-rated film is '{row['Title']}' with a rating of {row['Your Rating']}."
+        if "genre" in q and 'Genre' in df.columns:
+            genre_avg = df.groupby('Genre')['Your Rating'].mean().sort_values(ascending=False)
+            top_genre = genre_avg.idxmax()
+            return f"You rate '{top_genre}' films highest, with an average rating of {round(genre_avg[top_genre], 1)}."
 
-    if "average" in q:
-        avg_my = round(df['Your Rating'].mean(), 1)
-        avg_imdb = round(df['IMDb Rating'].mean(), 1)
-        return f"Your average rating is {avg_my}, and the average IMDb rating is {avg_imdb}."
+        if "director" in q and 'Director' in df.columns:
+            director_avg = df.groupby('Director')['Your Rating'].mean().sort_values(ascending=False)
+            top_director = director_avg.idxmax()
+            return f"You rate films by '{top_director}' highest, with an average rating of {round(director_avg[top_director], 1)}."
 
-    if "most voted" in q and 'Num Votes' in df.columns:
-        row = df.loc[df['Num Votes'].idxmax()]
-        return f"The most voted film is '{row['Title']}' with {row['Num Votes']} votes."
+        return "I couldn't match your query to a known pattern, but here's a summary of your ratings."
 
-    if "genre" in q and 'Genre' in df.columns:
-        genre_avg = df.groupby('Genre')['Your Rating'].mean().sort_values(ascending=False)
-        top_genre = genre_avg.idxmax()
-        return f"You rate '{top_genre}' films highest, with an average rating of {round(genre_avg[top_genre], 1)}."
+    # --- GPT-2 Explanation ---
+    def explain_with_gpt2(prompt):
+        inputs = tokenizer.encode(prompt, return_tensors="pt")
+        outputs = model.generate(
+            inputs,
+            max_length=150,
+            do_sample=True,
+            top_k=50,
+            top_p=0.95,
+            temperature=0.7,
+            num_return_sequences=1
+        )
+        explanation = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        return explanation.replace(prompt, "").strip()
 
-    if "director" in q and 'Director' in df.columns:
-        director_avg = df.groupby('Director')['Your Rating'].mean().sort_values(ascending=False)
-        top_director = director_avg.idxmax()
-        return f"You rate films by '{top_director}' highest, with an average rating of {round(director_avg[top_director], 1)}."
-
-    return "I couldn't match your query to a known pattern, but here's a summary of your ratings."
-
-# --- GPT-2 Explanation ---
-def explain_with_gpt2(prompt):
-    inputs = tokenizer.encode(prompt, return_tensors="pt")
-    outputs = model.generate(
-        inputs,
-        max_length=150,
-        do_sample=True,
-        top_k=50,
-        top_p=0.95,
-        temperature=0.7,
-        num_return_sequences=1
-    )
-    explanation = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return explanation.replace(prompt, "").strip()
-
-# --- User Interaction ---
-user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
-if st.button("Ask AI") and user_query.strip():
-    try:
-        structured_answer = query_router(user_query, merged_ratings)
-        prompt = f"""
+    # --- User Interaction ---
+    user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
+    if st.button("Ask AI") and user_query.strip():
+        try:
+            structured_answer = query_router(user_query, merged_ratings)
+            prompt = f"""
 You are a film data assistant. The user has rated films with these fields:
 - Title, Your Rating, IMDb Rating, Year, Genre, Director, Num Votes
 
@@ -1646,8 +1629,8 @@ User query: {user_query}
 Structured answer: {structured_answer}
 Explain this in a friendly way:
 """
-        explanation = explain_with_gpt2(prompt)
-        st.write("### 💬 AI Answer")
-        st.write(explanation if explanation else structured_answer)
-    except Exception as e:
-        st.error(f"Error generating AI answer: {e}")
+            explanation = explain_with_gpt2(prompt)
+            st.write("### 💬 AI Answer")
+            st.write(explanation if explanation else structured_answer)
+        except Exception as e:
+            st.error(f"Error generating AI answer: {e}")
