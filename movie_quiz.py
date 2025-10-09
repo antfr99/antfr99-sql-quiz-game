@@ -1519,7 +1519,7 @@ This scenario allows you to ask **natural-language questions** about my personal
             st.info("No matching films found. Try a different director surname or genre keyword.")
 
 
-# --- Scenario 15 # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- 
+# --- Scenario 15 # 
 
 if scenario.startswith("15"):
     import streamlit as st
@@ -1692,4 +1692,8 @@ if scenario.startswith("15"):
     user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
     if st.button("Ask AI") and user_query.strip():
         try:
-            structured_answer = query_router(user
+            structured_answer = query_router(user_query, My_Ratings)
+            st.write("### 💬 Structured Answer")
+            st.write(structured_answer)
+        except Exception as e:
+            st.error(f"Error generating answer: {e}")
