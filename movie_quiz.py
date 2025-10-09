@@ -1522,102 +1522,116 @@ This scenario allows you to ask **natural-language questions** about my personal
 # --- Scenario 15 # 
 
 # --- Scenario 15: AI via Public GPT-2 Medium (My Ratings Only) ---
+
+# --- Scenario 15: AI via Public GPT-2 Medium (My Ratings Only) ---
 if scenario.startswith("15"):
     import streamlit as st
     import pandas as pd
-    from transformers import pipeline
+    import re
     import difflib
-    import numpy as np
+    from transformers import pipeline
 
     st.subheader("🧠 15 – AI via Public GPT-2 Medium (My Ratings Only)")
-
     st.markdown("""
 Ask questions about your own film ratings using natural language.
 
 **Examples**
 - "Which of my rated films has the highest rating?"
-- "What’s my average rating by genre?"
+- "What rating did I give The Matrix?"
 - "Which director do I rate highest?"
-""")
+- "What’s my average rating for horror films?"
+    """)
 
-    # --- Load local Excel ---
-    try:
-        myratings = pd.read_excel("myratings.xlsx")
-        myratings.columns = [c.strip() for c in myratings.columns]
-    except Exception as e:
-        st.error(f"Error loading myratings.xlsx: {e}")
-        st.stop()
+    # --- Load My Ratings from GitHub ---
+    github_url = "https://raw.githubusercontent.com/antfr99/antfr99-sql-quiz-game/main/myratings.xlsx"
 
-    # --- Prepare dataframe ---
-    df = myratings.rename(columns=lambda x: x.strip().lower().replace(" ", "_"))
-    if "your_rating" not in df.columns:
-        st.error("Missing column 'Your Rating' in myratings.xlsx")
-        st.stop()
+    @st.cache_data
+    def load_ratings(url):
+        try:
+            df = pd.read_excel(url)
+            df.columns = df.columns.str.strip()
+            return df
+        except Exception as e:
+            st.error(f"❌ Error loading My Ratings from GitHub: {e}")
+            return pd.DataFrame()
 
-    # --- Helper: fuzzy title match ---
-    def find_title_match(user_text):
-        titles = df["title"].astype(str).tolist()
-        matches = difflib.get_close_matches(user_text, titles, n=1, cutoff=0.6)
-        return matches[0] if matches else None
+    df = load_ratings(github_url)
 
-    # --- Core logic for data questions ---
-    def query_router(question):
-        q = question.lower()
-
-        # Highest-rated film
-        if "highest" in q and "rating" in q:
-            best = df.loc[df["your_rating"].idxmax()]
-            return f"Your highest-rated film is **{best['title']}** with a score of **{best['your_rating']}**."
-
-        # Lowest-rated film
-        if "lowest" in q or "worst" in q:
-            worst = df.loc[df["your_rating"].idxmin()]
-            return f"Your lowest-rated film is **{worst['title']}** with a score of **{worst['your_rating']}**."
-
-        # Average by genre
-        if "average" in q and "genre" in q:
-            if "genre" in df.columns:
-                avg = df.groupby("genre")["your_rating"].mean().round(2)
-                return "Your average rating by genre:\n" + avg.to_string()
-            else:
-                return "No genre column found in your ratings file."
-
-        # Average rating overall
-        if "average" in q:
-            return f"Your overall average rating is **{df['your_rating'].mean():.2f}**."
-
-        # Specific film lookup
-        title = find_title_match(question)
-        if title:
-            r = df.loc[df["title"] == title, "your_rating"].values[0]
-            return f"You rated **{title}** a **{r}**."
-
-        return None  # fallback to GPT-2
-
-    # --- Hugging Face GPT-2 Medium (no token required) ---
+    # --- Load GPT-2 model only once ---
     @st.cache_resource
     def load_model():
         return pipeline("text-generation", model="gpt2-medium")
-
     generator = load_model()
 
-    # --- UI ---
-    user_q = st.text_input("💬 Ask the AI something:")
+    # --- Intent detection ---
+    def intent(q):
+        q = q.lower()
+        if "highest" in q or "top" in q:
+            return "top"
+        if "lowest" in q or "worst" in q:
+            return "bottom"
+        if "average" in q or "mean" in q:
+            return "average"
+        if "director" in q:
+            return "director"
+        if "genre" in q:
+            return "genre"
+        if re.search(r"\b(19|20)\d{2}\b", q):
+            return "year"
+        return "fallback"
 
-    if user_q:
+    # --- Find film title ---
+    def find_title_match(query, titles):
+        query = query.lower()
+        for t in titles:
+            if str(t).lower() in query:
+                return t
+        best = difflib.get_close_matches(query, [str(t).lower() for t in titles], n=1, cutoff=0.6)
+        if best:
+            for t in titles:
+                if str(t).lower() == best[0]:
+                    return t
+        return None
+
+    # --- Structured logic ---
+    def query_router(query, df):
+        if df.empty:
+            return None
+
+        if not all(c in df.columns for c in ["Title", "Your Rating"]):
+            return None
+
+        d = df.copy()
+        d["Title"] = d["Title"].astype(str)
+
+        # 1️⃣ Exact title lookup
+        title_match = find_title_match(query, d["Title"].dropna().unique())
+        if title_match:
+            rating = d.loc[d["Title"] == title_match, "Your Rating"].values[0]
+            return f"You rated '{title_match}' a {rating}."
+
+        # 2️⃣ Highest-rated film
+        if "highest" in query.lower() or "top" in query.lower():
+            top_rating = d["Your Rating"].max()
+            top_titles = d.loc[d["Your Rating"] == top_rating, "Title"].tolist()
+            return f"Your highest-rated film(s): {', '.join(top_titles)} ({top_rating})."
+
+        # 3️⃣ Average rating
+        if "average" in query.lower():
+            avg = round(d["Your Rating"].mean(), 1)
+            return f"Your average rating is {avg}."
+
+        return None  # fallback triggers GPT-2
+
+    # --- Streamlit UI ---
+    user_query = st.text_input("💬 Ask the AI something:", placeholder="e.g. What rating did I give The Matrix?")
+    if st.button("Ask AI") and user_query.strip():
+        structured_answer = query_router(user_query, df)
+
         st.write("### 💬 AI Answer")
-        answer = query_router(user_q)
-
-        if answer:
-            st.success(answer)
+        if structured_answer:
+            st.write(structured_answer)
         else:
-            # fallback to GPT-2 completion
-            gpt_output = generator(
-                user_q,
-                max_length=120,
-                num_return_sequences=1,
-                do_sample=True,
-                temperature=0.7,
-                pad_token_id=50256,
-            )[0]["generated_text"]
-            st.write(gpt_output.split(". ")[0] + ".")
+            # only use GPT-2 if structured logic failed
+            ai_reply = generator(user_query, max_new_tokens=80, num_return_sequences=1)[0]["generated_text"]
+            st.write(ai_reply)
