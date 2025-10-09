@@ -1521,6 +1521,7 @@ This scenario allows you to ask **natural-language questions** about my personal
 
 # --- Scenario 15: AI Q&A via Local GPT-2 ---
 
+
 if scenario.startswith("15"):
     import streamlit as st
     import pandas as pd
@@ -1544,15 +1545,15 @@ if scenario.startswith("15"):
         st.error(f"Error loading My Ratings: {e}")
         My_Ratings = pd.DataFrame()
 
-    # --- Load GPT-2 Medium (Public Model) ---
+    # --- Load GPT-2 Medium ---
     @st.cache_resource
-    def load_gpt2_public():
+    def load_gpt2_medium():
         model_name = "openai-community/gpt2-medium"
         tokenizer = GPT2Tokenizer.from_pretrained(model_name)
         model = GPT2LMHeadModel.from_pretrained(model_name)
         return tokenizer, model
 
-    tokenizer, model = load_gpt2_public()
+    tokenizer, model = load_gpt2_medium()
 
     # --- Query Router ---
     def query_router(query, df):
@@ -1563,20 +1564,20 @@ if scenario.startswith("15"):
         def match(phrases):
             return any(difflib.get_close_matches(q, phrases, n=1, cutoff=0.6))
 
-        # Highest rating
+        # Top-rated
         if match(["highest rating", "top-rated", "best film"]):
             row = df.loc[df['Your Rating'].idxmax()]
-            return f"Your top-rated film is '{row.get('Title','Unknown')}' ({row['Your Rating']})."
+            return f"Your top-rated film is '{row['Title']}' ({row['Your Rating']})."
 
-        # Lowest rating
+        # Lowest-rated
         if match(["lowest rating", "worst film"]):
             row = df.loc[df['Your Rating'].idxmin()]
-            return f"Your lowest-rated film is '{row.get('Title','Unknown')}' ({row['Your Rating']})."
+            return f"Your lowest-rated film is '{row['Title']}' ({row['Your Rating']})."
 
         # Average rating
         if match(["average", "mean rating"]):
-            avg_my = round(df['Your Rating'].mean(), 1)
-            return f"Your average rating is {avg_my}."
+            avg = round(df['Your Rating'].mean(), 1)
+            return f"Your average rating is {avg}."
 
         # Favorite genre
         if match(["genre", "favorite genre"]):
@@ -1590,11 +1591,11 @@ if scenario.startswith("15"):
             top_director = director_avg.idxmax()
             return f"You rate films by '{top_director}' highest ({round(director_avg[top_director],1)})."
 
-        # Top 3 fallback
+        # Fallback: top 3 films
         top = df.sort_values(by='Your Rating', ascending=False).head(3)
         summary = "Your top 3 rated films:\n"
         for _, row in top.iterrows():
-            summary += f"- {row.get('Title','Unknown')} ({row['Your Rating']})\n"
+            summary += f"- {row['Title']} ({row['Your Rating']})\n"
         return summary.strip()
 
     # --- GPT-2 Explanation ---
@@ -1612,21 +1613,26 @@ if scenario.startswith("15"):
         explanation = tokenizer.decode(outputs[0], skip_special_tokens=True)
         return explanation.replace(prompt, "").strip()
 
-    # --- Streamlit User Interaction ---
+    # --- Streamlit UI ---
     user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
     if st.button("Ask AI") and user_query.strip():
         try:
+            # Compute structured answer from your Excel
             structured_answer = query_router(user_query, My_Ratings)
+
+            # Feed structured answer to GPT-2 for friendly explanation
             prompt = f"""
-You are a film data assistant. The user has rated films with these fields:
-- Title, Your Rating, URL, IMDb Rating, Runtime (mins), Year, Director, Genre
+You are a friendly film assistant. The user has rated films with these fields:
+Title, Your Rating, URL, IMDb Rating, Runtime (mins), Year, Director, Genre.
 
 User query: {user_query}
 Structured answer: {structured_answer}
-Explain this in a friendly and informative way:
+Explain this clearly and in a friendly way:
 """
             explanation = explain_with_gpt2(prompt)
+
             st.write("### 💬 AI Answer")
             st.write(explanation if explanation else structured_answer)
+
         except Exception as e:
             st.error(f"Error generating AI answer: {e}")
