@@ -1521,6 +1521,7 @@ This scenario allows you to ask **natural-language questions** about my personal
 
 # --- Scenario 15
 
+
 if scenario.startswith("15"):
     import streamlit as st
     import pandas as pd
@@ -1536,12 +1537,13 @@ if scenario.startswith("15"):
     - "Which director do I rate highest?"
     """)
 
-    # --- Load My Ratings ---
+    # --- Load My Ratings from GitHub ---
+    github_url = "https://raw.githubusercontent.com/antfr99/antfr99-sql-quiz-game/main/myratings.xlsx"
     try:
-        My_Ratings = pd.read_excel("myratings.xlsx")
+        My_Ratings = pd.read_excel(github_url)
         My_Ratings.columns = My_Ratings.columns.str.strip()
     except Exception as e:
-        st.error(f"Error loading My Ratings: {e}")
+        st.error(f"Error loading My Ratings from GitHub: {e}")
         My_Ratings = pd.DataFrame()
 
     # --- Load GPT-2 Medium ---
@@ -1554,7 +1556,7 @@ if scenario.startswith("15"):
 
     tokenizer, model = load_gpt2_medium()
 
-    # --- Build structured answer including all relevant movies ---
+    # --- Build structured answers ---
     def query_router(query, df):
         q = query.lower()
         if df.empty:
@@ -1599,18 +1601,19 @@ if scenario.startswith("15"):
         titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top.iterrows()]
         return f"Your top 3 films are: {', '.join(titles)}."
 
-    # --- GPT-2 Explanation: strict no hallucination ---
+    # --- GPT-2 Explanation with strict structured answer ---
     def explain_with_gpt2(structured_answer, user_query):
         prompt = f"""
 User query: {user_query}
 Structured answer: {structured_answer}
 Explain this clearly and in a friendly way.
-Do NOT mention any movies not in the structured answer.
+Do NOT invent or mention any movies not in the structured answer.
+Keep the response short and focused.
 """
         inputs = tokenizer.encode(prompt, return_tensors="pt")
         outputs = model.generate(
             inputs,
-            max_length=200,
+            max_length=100,
             do_sample=True,
             top_k=50,
             top_p=0.95,
@@ -1621,7 +1624,7 @@ Do NOT mention any movies not in the structured answer.
         return explanation.replace(prompt, "").strip()
 
     # --- Streamlit UI ---
-    user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
+    user_query = st.text_input("Ask the AI something:", placeholder="e.g. Which of my films is top-rated?")
     if st.button("Ask AI") and user_query.strip():
         try:
             structured_answer = query_router(user_query, My_Ratings)
@@ -1630,6 +1633,3 @@ Do NOT mention any movies not in the structured answer.
             st.write(explanation if explanation else structured_answer)
         except Exception as e:
             st.error(f"Error generating AI answer: {e}")
-
-
-
