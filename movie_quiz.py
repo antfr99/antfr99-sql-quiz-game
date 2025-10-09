@@ -1527,7 +1527,6 @@ if scenario.startswith("15"):
     import pandas as pd
     import torch
     from transformers import GPT2LMHeadModel, GPT2Tokenizer
-    import difflib
 
     st.subheader("🧠 15 – AI via GPT-2 Medium (My Ratings Only)")
     st.markdown("""
@@ -1539,86 +1538,113 @@ if scenario.startswith("15"):
 
     # --- Load My Ratings from GitHub ---
     github_url = "https://raw.githubusercontent.com/antfr99/antfr99-sql-quiz-game/main/myratings.xlsx"
-    try:
-        My_Ratings = pd.read_excel(github_url)
-        My_Ratings.columns = My_Ratings.columns.str.strip()
-    except Exception as e:
-        st.error(f"Error loading My Ratings from GitHub: {e}")
-        My_Ratings = pd.DataFrame()
+
+    @st.cache_data
+    def load_ratings(url):
+        try:
+            df = pd.read_excel(url)
+            df.columns = df.columns.str.strip()
+            return df
+        except Exception as e:
+            st.error(f"Error loading My Ratings from GitHub: {e}")
+            return pd.DataFrame()
+
+    My_Ratings = load_ratings(github_url)
 
     # --- Load GPT-2 Medium ---
     @st.cache_resource
     def load_gpt2_medium():
         model_name = "openai-community/gpt2-medium"
         tokenizer = GPT2Tokenizer.from_pretrained(model_name)
+        tokenizer.pad_token = tokenizer.eos_token  # avoid warnings
         model = GPT2LMHeadModel.from_pretrained(model_name)
         return tokenizer, model
 
     tokenizer, model = load_gpt2_medium()
 
-    # --- Build structured answers ---
-    def query_router(query, df):
+    # --- Intent detection ---
+    def intent(query: str) -> str:
         q = query.lower()
+        if "highest" in q and "rating" in q:
+            return "top"
+        if "lowest" in q or "worst" in q:
+            return "bottom"
+        if "average" in q or "mean" in q:
+            return "average"
+        if "genre" in q:
+            return "genre"
+        if "director" in q:
+            return "director"
+        return "fallback"
+
+    # --- Structured answer generator ---
+    def query_router(query, df):
         if df.empty:
             return "No film ratings data available."
 
-        def match(phrases):
-            return any(difflib.get_close_matches(q, phrases, n=1, cutoff=0.6))
+        if "Your Rating" not in df.columns or "Title" not in df.columns:
+            return "Ratings data is missing required columns."
 
-        # Top-rated
-        if match(["highest rating", "top-rated", "best film"]):
-            top_rating = df['Your Rating'].max()
-            top_movies = df[df['Your Rating'] == top_rating]
-            titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
+        d = df.dropna(subset=["Your Rating"])
+        if d.empty:
+            return "No valid ratings available."
+
+        i = intent(query)
+
+        if i == "top":
+            top_rating = d["Your Rating"].max()
+            top_movies = d[d["Your Rating"] == top_rating]
+            titles = [f"'{row.get('Title','Unknown')}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
             return f"Your top-rated film(s): {', '.join(titles)}."
 
-        # Lowest-rated
-        if match(["lowest rating", "worst film"]):
-            low_rating = df['Your Rating'].min()
-            low_movies = df[df['Your Rating'] == low_rating]
-            titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
+        if i == "bottom":
+            low_rating = d["Your Rating"].min()
+            low_movies = d[d["Your Rating"] == low_rating]
+            titles = [f"'{row.get('Title','Unknown')}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
             return f"Your lowest-rated film(s): {', '.join(titles)}."
 
-        # Average rating
-        if match(["average", "mean rating"]):
-            avg = round(df['Your Rating'].mean(), 1)
+        if i == "average":
+            avg = round(d["Your Rating"].mean(), 1)
             return f"Your average rating is {avg}."
 
-        # Favorite genre
-        if match(["genre", "favorite genre"]):
-            genre_avg = df.groupby('Genre')['Your Rating'].mean().sort_values(ascending=False)
+        if i == "genre" and "Genre" in d.columns:
+            g = d.dropna(subset=["Genre"])
+            if g.empty:
+                return "No genre data available."
+            genre_avg = g.groupby("Genre")["Your Rating"].mean().sort_values(ascending=False)
             top_genre = genre_avg.idxmax()
             return f"Your favorite genre is '{top_genre}' (average rating {round(genre_avg[top_genre],1)})."
 
-        # Favorite director
-        if match(["director", "favorite director"]):
-            director_avg = df.groupby('Director')['Your Rating'].mean().sort_values(ascending=False)
+        if i == "director" and "Director" in d.columns:
+            g = d.dropna(subset=["Director"])
+            if g.empty:
+                return "No director data available."
+            director_avg = g.groupby("Director")["Your Rating"].mean().sort_values(ascending=False)
             top_director = director_avg.idxmax()
             return f"Your favorite director is '{top_director}' (average rating {round(director_avg[top_director],1)})."
 
         # Fallback: top 3 films
-        top = df.sort_values(by='Your Rating', ascending=False).head(3)
-        titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top.iterrows()]
+        top3 = d.sort_values(by="Your Rating", ascending=False).head(3)
+        titles = [f"'{row.get('Title','Unknown')}' ({row['Your Rating']})" for _, row in top3.iterrows()]
         return f"Your top 3 films are: {', '.join(titles)}."
 
-    # --- GPT-2 Explanation with strict structured answer ---
+    # --- GPT-2 Explanation ---
     def explain_with_gpt2(structured_answer, user_query):
         prompt = f"""
-User query: {user_query}
-Structured answer: {structured_answer}
-Explain this clearly and in a friendly way.
-Do NOT invent or mention any movies not in the structured answer.
-Keep the response short and focused.
+The user asked: {user_query}
+Answer: {structured_answer}
+Rephrase the answer in one short, friendly sentence:
 """
         inputs = tokenizer.encode(prompt, return_tensors="pt")
         outputs = model.generate(
             inputs,
-            max_length=100,
+            max_length=80,
             do_sample=True,
-            top_k=50,
-            top_p=0.95,
+            top_k=40,
+            top_p=0.9,
             temperature=0.7,
-            num_return_sequences=1
+            num_return_sequences=1,
+            pad_token_id=tokenizer.eos_token_id
         )
         explanation = tokenizer.decode(outputs[0], skip_special_tokens=True)
         return explanation.replace(prompt, "").strip()
@@ -1628,8 +1654,12 @@ Keep the response short and focused.
     if st.button("Ask AI") and user_query.strip():
         try:
             structured_answer = query_router(user_query, My_Ratings)
+            st.write("### 💬 Structured Answer")
+            st.write(structured_answer)
+
             explanation = explain_with_gpt2(structured_answer, user_query)
-            st.write("### 💬 AI Answer")
-            st.write(explanation if explanation else structured_answer)
+            if explanation and explanation != structured_answer:
+                st.write("### 🤖 GPT-2 Explanation")
+                st.write(explanation)
         except Exception as e:
             st.error(f"Error generating AI answer: {e}")
