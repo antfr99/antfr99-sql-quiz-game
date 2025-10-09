@@ -1519,11 +1519,13 @@ This scenario allows you to ask **natural-language questions** about my personal
             st.info("No matching films found. Try a different director surname or genre keyword.")
 
 
-# --- Scenario 15
+# --- Scenario 15 # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- 
+
 
 if scenario.startswith("15"):
     import streamlit as st
     import pandas as pd
+    import re
 
     st.subheader("🧠 15 – AI via GPT-2 Medium (My Ratings Only)")
     st.markdown("""
@@ -1531,6 +1533,10 @@ if scenario.startswith("15"):
     - "Which of my rated films has the highest rating?"
     - "What’s my average rating by genre?"
     - "Which director do I rate highest?"
+    - "What rating did I give The Matrix?"
+    - "Which films did I rate 9?"
+    - "What’s my average rating for horror films?"
+    - "What was my top-rated film in 2020?"
     """)
 
     # --- Load My Ratings from GitHub ---
@@ -1561,6 +1567,8 @@ if scenario.startswith("15"):
             return "genre"
         if "director" in q:
             return "director"
+        if re.search(r"\b(19|20)\d{2}\b", q):  # detect a year
+            return "year"
         return "fallback"
 
     # --- Structured answer generator ---
@@ -1575,18 +1583,77 @@ if scenario.startswith("15"):
         if d.empty:
             return "No valid ratings available."
 
-        i = intent(query)
+        q = query.lower()
+        i = intent(q)
 
+        # --- Specific Title lookup ---
+        for title in d["Title"].dropna().unique():
+            if title.lower() in q:
+                rating = d.loc[d["Title"].str.lower() == title.lower(), "Your Rating"].values[0]
+                return f"You rated '{title}' a {rating}."
+
+        # --- Specific Rating lookup ---
+        match = re.search(r"\b([0-9]{1,2})\b", q)
+        if match:
+            val = int(match.group(1))
+            films = d.loc[d["Your Rating"] == val, "Title"].tolist()
+            if films:
+                return f"Films you rated {val}: {', '.join(films)}."
+
+        # --- Genre-specific queries ---
+        if "Genre" in d.columns:
+            for g in d["Genre"].dropna().unique():
+                if g.lower() in q:
+                    subset = d[d["Genre"].str.lower() == g.lower()]
+                    if "average" in q or "mean" in q:
+                        avg = round(subset["Your Rating"].mean(), 1)
+                        return f"Your average rating for {g} films is {avg}."
+                    if "highest" in q or "top" in q:
+                        top_rating = subset["Your Rating"].max()
+                        top_movies = subset[subset["Your Rating"] == top_rating]
+                        titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
+                        return f"Your top-rated {g} film(s): {', '.join(titles)}."
+                    if "lowest" in q or "worst" in q:
+                        low_rating = subset["Your Rating"].min()
+                        low_movies = subset[subset["Your Rating"] == low_rating]
+                        titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
+                        return f"Your lowest-rated {g} film(s): {', '.join(titles)}."
+
+        # --- Year-specific queries ---
+        year_match = re.search(r"\b(19|20)\d{2}\b", q)
+        if year_match and "Year" in d.columns:
+            year_val = int(year_match.group(0))
+            subset = d[d["Year"] == year_val]
+            if subset.empty:
+                return f"No films found for {year_val}."
+            if "average" in q or "mean" in q:
+                avg = round(subset["Your Rating"].mean(), 1)
+                return f"Your average rating in {year_val} was {avg}."
+            if "highest" in q or "top" in q:
+                top_rating = subset["Your Rating"].max()
+                top_movies = subset[subset["Your Rating"] == top_rating]
+                titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
+                return f"Your top-rated film(s) in {year_val}: {', '.join(titles)}."
+            if "lowest" in q or "worst" in q:
+                low_rating = subset["Your Rating"].min()
+                low_movies = subset[subset["Your Rating"] == low_rating]
+                titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
+                return f"Your lowest-rated film(s) in {year_val}: {', '.join(titles)}."
+            # fallback: list films that year
+            films = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in subset.iterrows()]
+            return f"Films you rated in {year_val}: {', '.join(films)}."
+
+        # --- General intents ---
         if i == "top":
             top_rating = d["Your Rating"].max()
             top_movies = d[d["Your Rating"] == top_rating]
-            titles = [f"'{row.get('Title','Unknown')}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
+            titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
             return f"Your top-rated film(s): {', '.join(titles)}."
 
         if i == "bottom":
             low_rating = d["Your Rating"].min()
             low_movies = d[d["Your Rating"] == low_rating]
-            titles = [f"'{row.get('Title','Unknown')}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
+            titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
             return f"Your lowest-rated film(s): {', '.join(titles)}."
 
         if i == "average":
@@ -1609,13 +1676,13 @@ if scenario.startswith("15"):
             top_director = director_avg.idxmax()
             return f"Your favorite director is '{top_director}' (average rating {round(director_avg[top_director],1)})."
 
-        # Fallback: top 3 films
+        # --- Fallback: top 3 films ---
         top3 = d.sort_values(by="Your Rating", ascending=False).head(3)
         titles = [f"'{row.get('Title','Unknown')}' ({row['Your Rating']})" for _, row in top3.iterrows()]
         return f"Your top 3 films are: {', '.join(titles)}."
 
     # --- Streamlit UI ---
-    user_query = st.text_input("Ask the AI something:", placeholder="e.g. Which of my films is top-rated?")
+    user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
     if st.button("Ask AI") and user_query.strip():
         try:
             structured_answer = query_router(user_query, My_Ratings)
