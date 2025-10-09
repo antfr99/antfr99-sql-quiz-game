@@ -1521,7 +1521,6 @@ This scenario allows you to ask **natural-language questions** about my personal
 
 # --- Scenario 15 # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- # --- 
 
-
 if scenario.startswith("15"):
     import streamlit as st
     import pandas as pd
@@ -1579,17 +1578,25 @@ if scenario.startswith("15"):
         if "Your Rating" not in df.columns or "Title" not in df.columns:
             return "Ratings data is missing required columns."
 
-        d = df.dropna(subset=["Your Rating"])
+        d = df.dropna(subset=["Your Rating"]).copy()
         if d.empty:
             return "No valid ratings available."
+
+        # Normalize text columns
+        if "Title" in d.columns:
+            d["Title"] = d["Title"].astype(str)
+        if "Genre" in d.columns:
+            d["Genre"] = d["Genre"].astype(str)
+        if "Director" in d.columns:
+            d["Director"] = d["Director"].astype(str)
 
         q = query.lower()
         i = intent(q)
 
         # --- Specific Title lookup ---
         for title in d["Title"].dropna().unique():
-            if title.lower() in q:
-                rating = d.loc[d["Title"].str.lower() == title.lower(), "Your Rating"].values[0]
+            if str(title).lower() in q:
+                rating = d.loc[d["Title"].str.lower() == str(title).lower(), "Your Rating"].values[0]
                 return f"You rated '{title}' a {rating}."
 
         # --- Specific Rating lookup ---
@@ -1603,8 +1610,8 @@ if scenario.startswith("15"):
         # --- Genre-specific queries ---
         if "Genre" in d.columns:
             for g in d["Genre"].dropna().unique():
-                if g.lower() in q:
-                    subset = d[d["Genre"].str.lower() == g.lower()]
+                if str(g).lower() in q:
+                    subset = d[d["Genre"].str.lower() == str(g).lower()]
                     if "average" in q or "mean" in q:
                         avg = round(subset["Your Rating"].mean(), 1)
                         return f"Your average rating for {g} films is {avg}."
@@ -1685,8 +1692,4 @@ if scenario.startswith("15"):
     user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
     if st.button("Ask AI") and user_query.strip():
         try:
-            structured_answer = query_router(user_query, My_Ratings)
-            st.write("### 💬 Structured Answer")
-            st.write(structured_answer)
-        except Exception as e:
-            st.error(f"Error generating answer: {e}")
+            structured_answer = query_router(user
