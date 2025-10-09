@@ -1526,6 +1526,7 @@ if scenario.startswith("15"):
     import pandas as pd
     import re
     import difflib
+    from difflib import SequenceMatcher
 
     st.subheader("🧠 15 – AI via GPT-2 Medium (My Ratings Only)")
     st.markdown("""
@@ -1554,6 +1555,60 @@ if scenario.startswith("15"):
 
     My_Ratings = load_ratings(github_url)
 
+    # --- Helpers for normalization and matching ---
+    def normalize_title(s: str) -> str:
+        s = str(s)
+        # remove year in parentheses and punctuation, lower
+        s = re.sub(r"\(\d{4}\)", "", s)
+        s = re.sub(r"[^\w\s]", " ", s)
+        s = re.sub(r"\s+", " ", s).strip().lower()
+        return s
+
+    def extract_quoted_or_title_phrase(q: str) -> str | None:
+        # Prefer quoted segment
+        m = re.search(r'"([^"]+)"|\'([^\']+)\'', q)
+        if m:
+            return (m.group(1) or m.group(2)).strip().lower()
+        # Else, try after keywords
+        m2 = re.search(r"(rate|rating|rated)\s+(.*)", q)
+        if m2:
+            phrase = m2.group(2)
+            # stop at question mark or "?" etc.
+            phrase = re.split(r"[?.,;:]", phrase)[0]
+            phrase = normalize_title(phrase)
+            return phrase if phrase else None
+        return None
+
+    def best_title_match(query: str, d: pd.DataFrame) -> str | None:
+        if "Title" not in d.columns:
+            return None
+        titles = d["Title"].dropna().astype(str).tolist()
+        # Build normalized map
+        norm_map = {t: normalize_title(t) for t in titles}
+        q_norm = normalize_title(query)
+
+        # If the query contains a quoted/explicit phrase, use it
+        explicit = extract_quoted_or_title_phrase(query)
+        probe = explicit or q_norm
+
+        # Try exact normalized match
+        exact_candidates = [t for t, n in norm_map.items() if n == probe]
+        if exact_candidates:
+            return exact_candidates[0]
+
+        # Try substring on normalized
+        sub_candidates = [t for t, n in norm_map.items() if probe in n or n in probe]
+        if sub_candidates:
+            # choose longest normalized candidate (more specific)
+            return max(sub_candidates, key=lambda t: len(norm_map[t]))
+
+        # Fuzzy: use SequenceMatcher on normalized strings
+        scored = [(t, SequenceMatcher(None, probe, norm_map[t]).ratio()) for t in titles]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        if scored and scored[0][1] >= 0.6:
+            return scored[0][0]
+        return None
+
     # --- Intent detection (for routing the query) ---
     def intent(query: str) -> str:
         q = query.lower()
@@ -1571,22 +1626,6 @@ if scenario.startswith("15"):
             return "year"
         return "fallback"
 
-    # --- Helper: fuzzy title match ---
-    def find_title_match(query, titles):
-        query = query.lower()
-        # Exact substring match
-        for t in titles:
-            if str(t).lower() in query:
-                return t
-        # Fuzzy match
-        # Match only against words/phrases likely to be a title
-        best = difflib.get_close_matches(query, [str(t).lower() for t in titles], n=1, cutoff=0.6)
-        if best:
-            for t in titles:
-                if str(t).lower() == best[0]:
-                    return t
-        return None
-
     # --- Structured answer generator ---
     def query_router(query, df):
         if df.empty:
@@ -1599,7 +1638,7 @@ if scenario.startswith("15"):
         d = df.dropna(subset=["Your Rating"]).copy()
         if d.empty:
             return "No valid ratings available."
-        
+
         # Normalize/Clean Data
         d["Title"] = d["Title"].astype(str)
         if "Genre" in d.columns:
@@ -1607,21 +1646,25 @@ if scenario.startswith("15"):
         if "Director" in d.columns:
             d["Director"] = d["Director"].astype(str).str.strip()
         if "Year" in d.columns:
-            # Ensure Year is a numeric type for filtering
-            d["Year"] = pd.to_numeric(d["Year"], errors='coerce').fillna(0).astype(int)
+            d["Year"] = pd.to_numeric(d["Year"], errors='coerce')
 
         q = query.lower()
         i = intent(q)
-        
-        # --- 1. Specific Title lookup (Highest Priority: e.g., "rating for The Matrix") ---
-        title_match = find_title_match(q, d["Title"].dropna().unique())
-        if title_match:
-            rating = d.loc[d["Title"] == title_match, "Your Rating"].values[0]
-            return f"You rated '{title_match}' a {rating}."
 
-        # --- 2. Year-specific queries (e.g., "top film in 2020") ---
+        # --- 1. Specific Title lookup (robust) ---
+        title_match = best_title_match(q, d)
+        if title_match is not None:
+            # In case multiple rows exist (duplicates), show all ratings for that exact title string
+            rows = d[d["Title"] == title_match]
+            ratings = rows["Your Rating"].tolist()
+            if len(ratings) == 1:
+                return f"You rated '{title_match}' a {ratings[0]}."
+            else:
+                return f"You rated '{title_match}' {', '.join(map(str, ratings))}."
+
+        # --- 2. Year-specific queries ---
         year_match = re.search(r"\b(19|20)\d{2}\b", q)
-        if year_match and "Year" in d.columns:
+        if year_match and "Year" in d.columns and d["Year"].notna().any():
             year_val = int(year_match.group(0))
             subset = d[d["Year"] == year_val]
             if not subset.empty:
@@ -1633,28 +1676,32 @@ if scenario.startswith("15"):
                     top_movies = subset[subset["Your Rating"] == top_rating]
                     titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
                     return f"Your top-rated film(s) in {year_val}: {', '.join(titles)}."
-                # Default for year: list all films (if no specific metric is asked)
+                if "lowest" in q or "worst" in q:
+                    low_rating = subset["Your Rating"].min()
+                    low_movies = subset[subset["Your Rating"] == low_rating]
+                    titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
+                    return f"Your lowest-rated film(s) in {year_val}: {', '.join(titles)}."
                 films = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in subset.iterrows()]
                 return f"Films you rated in {year_val}: {', '.join(films)}."
 
-        # --- 3. Specific Rating lookup (e.g., "films rated 9") ---
-        match = re.search(r"\b([0-9]{1,2})\b", q)
-        if match and not year_match: 
-            val = int(match.group(1))
+        # --- 3. Specific Rating lookup ---
+        # Prefer rating-only intent when query contains a clean number and not a year
+        rating_match = re.search(r"\b([0-9]{1,2})\b", q)
+        if rating_match and not year_match:
+            val = int(rating_match.group(1))
             films = d.loc[d["Your Rating"] == val, "Title"].tolist()
             if films:
                 return f"Films you rated {val}: {', '.join(films)}."
 
-        # --- 4. Genre-specific queries (e.g., "average rating for horror films") ---
+        # --- 4. Genre-specific queries (support multi-genre cells) ---
         if "Genre" in d.columns:
-            # Create a temporary DataFrame for accurate multi-genre averages/lookups
             genre_df = d.assign(Genre=d['Genre'].str.split(',\s*')).explode('Genre')
-            for g in genre_df["Genre"].dropna().str.strip().unique():
+            genre_df["Genre"] = genre_df["Genre"].str.strip()
+            for g in genre_df["Genre"].dropna().unique():
                 if str(g).lower() in q:
-                    # Filter original DataFrame for the subset *containing* the genre
-                    subset = d[d["Genre"].str.contains(re.escape(g.strip()), case=False, na=False)]
-                    if subset.empty: continue
-
+                    subset = genre_df[genre_df["Genre"].str.lower() == str(g).lower()]
+                    if subset.empty:
+                        continue
                     if "average" in q or "mean" in q:
                         avg = round(subset["Your Rating"].mean(), 1)
                         return f"Your average rating for {g} films is {avg}."
@@ -1669,58 +1716,38 @@ if scenario.startswith("15"):
                         titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
                         return f"Your lowest-rated {g} film(s): {', '.join(titles)}."
 
-        # --- 5. General intents (e.g., "highest rating", "favorite genre") ---
+        # --- 5. General intents ---
         if i == "top":
             top_rating = d["Your Rating"].max()
             top_movies = d[d["Your Rating"] == top_rating]
             titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
             return f"Your top-rated film(s): {', '.join(titles)}."
-
         if i == "bottom":
             low_rating = d["Your Rating"].min()
             low_movies = d[d["Your Rating"] == low_rating]
             titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
             return f"Your lowest-rated film(s): {', '.join(titles)}."
-
         if i == "average":
             avg = round(d["Your Rating"].mean(), 1)
             return f"Your average rating is {avg}."
-
         if i == "genre" and "Genre" in d.columns:
-            # Use the exploded genre DataFrame for accurate average-by-genre calculation
             g_exploded = d.assign(Genre=d['Genre'].str.split(',\s*')).explode('Genre').dropna(subset=["Genre"])
             if g_exploded.empty:
-                 return "No genre data available."
+                return "No genre data available."
             genre_avg = g_exploded.groupby(g_exploded["Genre"].str.strip())["Your Rating"].mean().sort_values(ascending=False)
-            top_genre = genre_avg.index[0] 
+            top_genre = genre_avg.index[0]
             return f"Your favorite genre is '{top_genre}' (average rating {round(genre_avg.iloc[0],1)})."
-
         if i == "director" and "Director" in d.columns:
             g = d.dropna(subset=["Director"])
             if g.empty:
                 return "No director data available."
-            # Group by lower-cased director name for robust averaging
             director_avg = g.groupby(g['Director'].str.lower())["Your Rating"].mean()
             top_avg = director_avg.max()
             top_directors_lower = director_avg[director_avg == top_avg].index.tolist()
-            
-            # Get the original (cased) director name(s)
             original_directors = d[d['Director'].str.lower().isin(top_directors_lower)]['Director'].unique().tolist()
-            
             director_names = ', '.join([f"'{name}'" for name in original_directors])
             return f"Your favorite director(s) is/are {director_names} (average rating {round(top_avg,1)})."
 
         # --- 6. Fallback: top 3 films ---
         top3 = d.sort_values(by="Your Rating", ascending=False).head(3)
-        titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top3.iterrows()]
-        return f"Your top 3 films are: {', '.join(titles)}."
-
-    # --- Streamlit UI ---
-    user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
-    if st.button("Ask AI") and user_query.strip():
-        try:
-            structured_answer = query_router(user_query, My_Ratings)
-            st.write("### 💬 Structured Answer")
-            st.write(structured_answer)
-        except Exception as e:
-            st.error(f"Error generating answer: {e}")
+        titles =
