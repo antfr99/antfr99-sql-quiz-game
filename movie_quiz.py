@@ -22,7 +22,7 @@ st.set_page_config(
 
 st.title("IMDb/SQL/PYTHON Data Project 🎬")
 st.write("""
-This is a film/data project that integrates several Python libraries, including Pandas, PandasQL, NumPy, Streamlit, Scikit-learn, SciPy, TextBlob, Matplotlib, Seaborn, NetworkX, Sentence-Transformers and Requests. It also incorporates SQL, OMDb API, AI, GitHub, and IMDb.
+This is a film/data project that integrates several Python libraries, including Pandas, PandasQL, NumPy, Streamlit, Scikit-learn, SciPy, TextBlob, Matplotlib, Seaborn, NetworkX and Sentence-Transformers. It also incorporates SQL, OMDb API, AI, GitHub, and IMDb.
 """)
 
 # --- Load Excel files ---
@@ -94,7 +94,6 @@ scenario = st.radio(
         "12 – Feature Hypothesis Testing",
         "13 – Semantic Genre & Recommendations (Deep Learning / NLP)",
         "14 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)",
-        "15 – AI Q&A via Local GPT-2"
                 
                 
     ]
@@ -1518,121 +1517,3 @@ This scenario allows you to ask **natural-language questions** about my personal
         else:
             st.info("No matching films found. Try a different director surname or genre keyword.")
 
-# --- Scenario 15: AI Q&A via Local GPT-2 (Python + GPT-2 explanation) ---
-
-
-# --- Scenario 15: AI Q&A via Local GPT-2 ---
-
-import streamlit as st
-import pandas as pd
-import torch
-from transformers import GPT2LMHeadModel, GPT2Tokenizer
-
-st.subheader("🧠 Scenario 15 – AI Q&A via Local GPT-2")
-st.markdown("""
-Ask questions about your films. Example:
-- "Which of my rated films has the highest IMDb rating?"
-- "Which of my films has the lowest rating?"
-- "Compare my ratings with IMDb averages."
-""")
-
-# --- Load your Excel files ---
-try:
-    IMDB_Ratings = pd.read_excel("imdbratings.xlsx")
-    My_Ratings = pd.read_excel("myratings.xlsx")
-    Votes = pd.read_excel("votes.xlsx")  # optional
-except:
-    IMDB_Ratings = pd.DataFrame()
-    My_Ratings = pd.DataFrame()
-    Votes = pd.DataFrame()
-
-# --- Clean column names ---
-for df in [IMDB_Ratings, My_Ratings, Votes]:
-    df.columns = df.columns.str.strip()
-
-# --- Merge datasets ---
-if not My_Ratings.empty and not IMDB_Ratings.empty:
-    merged_ratings = My_Ratings.merge(
-        IMDB_Ratings[['Movie ID', 'Title', 'IMDb Rating']],
-        on='Movie ID',
-        how='left'
-    )
-    if not Votes.empty and 'Num Votes' in Votes.columns:
-        merged_ratings = merged_ratings.merge(
-            Votes[['Movie ID','Num Votes']],
-            on='Movie ID',
-            how='left'
-        )
-else:
-    merged_ratings = pd.DataFrame()
-
-# --- User input ---
-user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
-
-# --- Load GPT-2 model once ---
-@st.cache_resource
-def load_gpt2_model():
-    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-    model = GPT2LMHeadModel.from_pretrained("gpt2")
-    return tokenizer, model
-
-tokenizer, model = load_gpt2_model()
-
-# --- Compute structured answer from data ---
-def compute_answer(query, df):
-    q = query.lower()
-    if df.empty:
-        return "No film ratings data available."
-
-    if "highest imdb" in q:
-        if 'IMDb Rating' not in df.columns or df['IMDb Rating'].isnull().all():
-            return "IMDb rating data is not available."
-        row = df.loc[df['IMDb Rating'].idxmax()]
-        return f"The film with the highest IMDb rating is '{row['Title']}' ({row['IMDb Rating']})."
-
-    if "lowest imdb" in q:
-        if 'IMDb Rating' not in df.columns or df['IMDb Rating'].isnull().all():
-            return "IMDb rating data is not available."
-        row = df.loc[df['IMDb Rating'].idxmin()]
-        return f"The film with the lowest IMDb rating is '{row['Title']}' ({row['IMDb Rating']})."
-
-    if "top-rated" in q or "highest my rating" in q:
-        row = df.loc[df['Your Rating'].idxmax()]
-        return f"Your top-rated film is '{row['Title']}' ({row['Your Rating']})."
-
-    if "lowest my rating" in q:
-        row = df.loc[df['Your Rating'].idxmin()]
-        return f"Your lowest-rated film is '{row['Title']}' ({row['Your Rating']})."
-
-    if "average" in q:
-        avg_my = round(df['Your Rating'].mean(), 1) if 'Your Rating' in df.columns else None
-        avg_imdb = round(df['IMDb Rating'].mean(), 1) if 'IMDb Rating' in df.columns else None
-        return f"My average rating: {avg_my}, Average IMDb rating: {avg_imdb}."
-
-    return "I can't directly answer that question, but here is a summary of your ratings."
-
-# --- Generate explanation using GPT-2 ---
-if st.button("Ask AI") and user_query.strip():
-    try:
-        structured_answer = compute_answer(user_query, merged_ratings)
-        prompt = f"Explain this in a friendly way: {structured_answer}"
-
-        inputs = tokenizer.encode(prompt, return_tensors="pt")
-        outputs = model.generate(
-            inputs,
-            max_length=150,
-            do_sample=True,
-            top_k=50,
-            top_p=0.95,
-            temperature=0.7,
-            num_return_sequences=1
-        )
-
-        explanation = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        explanation_text = explanation.replace(prompt, "").strip()
-
-        st.write("### 💬 AI Answer")
-        st.write(explanation_text if explanation_text else structured_answer)
-
-    except Exception as e:
-        st.error(f"Error generating AI answer: {e}")
