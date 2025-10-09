@@ -1521,7 +1521,6 @@ This scenario allows you to ask **natural-language questions** about my personal
 
 # --- Scenario 15 # 
 
-
 if scenario.startswith("15"):
     import streamlit as st
     import pandas as pd
@@ -1555,7 +1554,7 @@ if scenario.startswith("15"):
 
     My_Ratings = load_ratings(github_url)
 
-    # --- Intent detection (kept as-is) ---
+    # --- Intent detection (for routing the query) ---
     def intent(query: str) -> str:
         q = query.lower()
         if "highest" in q and "rating" in q:
@@ -1572,7 +1571,7 @@ if scenario.startswith("15"):
             return "year"
         return "fallback"
 
-    # --- Helper: fuzzy title match (kept as-is) ---
+    # --- Helper: fuzzy title match ---
     def find_title_match(query, titles):
         query = query.lower()
         # Exact substring match
@@ -1580,6 +1579,7 @@ if scenario.startswith("15"):
             if str(t).lower() in query:
                 return t
         # Fuzzy match
+        # Match only against words/phrases likely to be a title
         best = difflib.get_close_matches(query, [str(t).lower() for t in titles], n=1, cutoff=0.6)
         if best:
             for t in titles:
@@ -1603,23 +1603,23 @@ if scenario.startswith("15"):
         # Normalize/Clean Data
         d["Title"] = d["Title"].astype(str)
         if "Genre" in d.columns:
-            d["Genre"] = d["Genre"].astype(str)
+            d["Genre"] = d["Genre"].astype(str).str.strip()
         if "Director" in d.columns:
-            d["Director"] = d["Director"].astype(str)
+            d["Director"] = d["Director"].astype(str).str.strip()
         if "Year" in d.columns:
-            # Ensure Year is a numeric type for filtering, convert to int where possible
+            # Ensure Year is a numeric type for filtering
             d["Year"] = pd.to_numeric(d["Year"], errors='coerce').fillna(0).astype(int)
 
         q = query.lower()
         i = intent(q)
         
-        # --- Specific Title lookup (High Priority) ---
+        # --- 1. Specific Title lookup (Highest Priority: e.g., "rating for The Matrix") ---
         title_match = find_title_match(q, d["Title"].dropna().unique())
         if title_match:
             rating = d.loc[d["Title"] == title_match, "Your Rating"].values[0]
             return f"You rated '{title_match}' a {rating}."
 
-        # --- Year-specific queries (Check before general intents) ---
+        # --- 2. Year-specific queries (e.g., "top film in 2020") ---
         year_match = re.search(r"\b(19|20)\d{2}\b", q)
         if year_match and "Year" in d.columns:
             year_val = int(year_match.group(0))
@@ -1633,32 +1633,26 @@ if scenario.startswith("15"):
                     top_movies = subset[subset["Your Rating"] == top_rating]
                     titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top_movies.iterrows()]
                     return f"Your top-rated film(s) in {year_val}: {', '.join(titles)}."
-                if "lowest" in q or "worst" in q:
-                    low_rating = subset["Your Rating"].min()
-                    low_movies = subset[subset["Your Rating"] == low_rating]
-                    titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
-                    return f"Your lowest-rated film(s) in {year_val}: {', '.join(titles)}."
-                # Default for year: list all films
+                # Default for year: list all films (if no specific metric is asked)
                 films = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in subset.iterrows()]
                 return f"Films you rated in {year_val}: {', '.join(films)}."
 
-        # --- Specific Rating lookup (Check after Title/Year) ---
+        # --- 3. Specific Rating lookup (e.g., "films rated 9") ---
         match = re.search(r"\b([0-9]{1,2})\b", q)
-        # This check is now here to avoid conflicting with a year being interpreted as a rating.
-        if match and not year_match: # Don't re-check if a year was already detected
+        if match and not year_match: 
             val = int(match.group(1))
             films = d.loc[d["Your Rating"] == val, "Title"].tolist()
             if films:
                 return f"Films you rated {val}: {', '.join(films)}."
 
-        # --- Genre-specific queries (Improved to handle multi-genre films) ---
+        # --- 4. Genre-specific queries (e.g., "average rating for horror films") ---
         if "Genre" in d.columns:
-            # Create a temporary DataFrame where each genre is a separate row
+            # Create a temporary DataFrame for accurate multi-genre averages/lookups
             genre_df = d.assign(Genre=d['Genre'].str.split(',\s*')).explode('Genre')
             for g in genre_df["Genre"].dropna().str.strip().unique():
                 if str(g).lower() in q:
                     # Filter original DataFrame for the subset *containing* the genre
-                    subset = d[d["Genre"].str.contains(g, case=False, na=False)]
+                    subset = d[d["Genre"].str.contains(re.escape(g.strip()), case=False, na=False)]
                     if subset.empty: continue
 
                     if "average" in q or "mean" in q:
@@ -1675,7 +1669,7 @@ if scenario.startswith("15"):
                         titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in low_movies.iterrows()]
                         return f"Your lowest-rated {g} film(s): {', '.join(titles)}."
 
-        # --- General intents ---
+        # --- 5. General intents (e.g., "highest rating", "favorite genre") ---
         if i == "top":
             top_rating = d["Your Rating"].max()
             top_movies = d[d["Your Rating"] == top_rating]
@@ -1697,34 +1691,31 @@ if scenario.startswith("15"):
             g_exploded = d.assign(Genre=d['Genre'].str.split(',\s*')).explode('Genre').dropna(subset=["Genre"])
             if g_exploded.empty:
                  return "No genre data available."
-            genre_avg = g_exploded.groupby("Genre")["Your Rating"].mean().sort_values(ascending=False)
-            top_genre = genre_avg.index[0].strip() # use index[0] for robustness
+            genre_avg = g_exploded.groupby(g_exploded["Genre"].str.strip())["Your Rating"].mean().sort_values(ascending=False)
+            top_genre = genre_avg.index[0] 
             return f"Your favorite genre is '{top_genre}' (average rating {round(genre_avg.iloc[0],1)})."
 
         if i == "director" and "Director" in d.columns:
             g = d.dropna(subset=["Director"])
             if g.empty:
                 return "No director data available."
-            # Ensure directors are grouped in a case-insensitive manner
-            g['Director_Lower'] = g['Director'].str.lower()
-            director_avg = g.groupby("Director_Lower")["Your Rating"].mean()
-            # Find the director(s) with the highest average rating
+            # Group by lower-cased director name for robust averaging
+            director_avg = g.groupby(g['Director'].str.lower())["Your Rating"].mean()
             top_avg = director_avg.max()
             top_directors_lower = director_avg[director_avg == top_avg].index.tolist()
             
             # Get the original (cased) director name(s)
             original_directors = d[d['Director'].str.lower().isin(top_directors_lower)]['Director'].unique().tolist()
             
-            # Format the output
             director_names = ', '.join([f"'{name}'" for name in original_directors])
             return f"Your favorite director(s) is/are {director_names} (average rating {round(top_avg,1)})."
 
-        # --- Fallback: top 3 films ---
+        # --- 6. Fallback: top 3 films ---
         top3 = d.sort_values(by="Your Rating", ascending=False).head(3)
         titles = [f"'{row['Title']}' ({row['Your Rating']})" for _, row in top3.iterrows()]
         return f"Your top 3 films are: {', '.join(titles)}."
 
-    # --- Streamlit UI (kept as-is) ---
+    # --- Streamlit UI ---
     user_query = st.text_input("Ask the AI something:", placeholder="e.g. What was my top-rated film in 2020?")
     if st.button("Ask AI") and user_query.strip():
         try:
