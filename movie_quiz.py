@@ -1521,12 +1521,9 @@ This scenario allows you to ask **natural-language questions** about my personal
 
 # --- Scenario 15
 
-
 if scenario.startswith("15"):
     import streamlit as st
     import pandas as pd
-    import torch
-    from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
     st.subheader("🧠 15 – AI via GPT-2 Medium (My Ratings Only)")
     st.markdown("""
@@ -1550,17 +1547,6 @@ if scenario.startswith("15"):
             return pd.DataFrame()
 
     My_Ratings = load_ratings(github_url)
-
-    # --- Load GPT-2 Medium ---
-    @st.cache_resource
-    def load_gpt2_medium():
-        model_name = "openai-community/gpt2-medium"
-        tokenizer = GPT2Tokenizer.from_pretrained(model_name)
-        tokenizer.pad_token = tokenizer.eos_token  # avoid warnings
-        model = GPT2LMHeadModel.from_pretrained(model_name)
-        return tokenizer, model
-
-    tokenizer, model = load_gpt2_medium()
 
     # --- Intent detection ---
     def intent(query: str) -> str:
@@ -1628,27 +1614,6 @@ if scenario.startswith("15"):
         titles = [f"'{row.get('Title','Unknown')}' ({row['Your Rating']})" for _, row in top3.iterrows()]
         return f"Your top 3 films are: {', '.join(titles)}."
 
-    # --- GPT-2 Explanation ---
-    def explain_with_gpt2(structured_answer, user_query):
-        prompt = f"""
-The user asked: {user_query}
-Answer: {structured_answer}
-Rephrase the answer in one short, friendly sentence:
-"""
-        inputs = tokenizer.encode(prompt, return_tensors="pt")
-        outputs = model.generate(
-            inputs,
-            max_length=80,
-            do_sample=True,
-            top_k=40,
-            top_p=0.9,
-            temperature=0.7,
-            num_return_sequences=1,
-            pad_token_id=tokenizer.eos_token_id
-        )
-        explanation = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return explanation.replace(prompt, "").strip()
-
     # --- Streamlit UI ---
     user_query = st.text_input("Ask the AI something:", placeholder="e.g. Which of my films is top-rated?")
     if st.button("Ask AI") and user_query.strip():
@@ -1656,10 +1621,5 @@ Rephrase the answer in one short, friendly sentence:
             structured_answer = query_router(user_query, My_Ratings)
             st.write("### 💬 Structured Answer")
             st.write(structured_answer)
-
-            explanation = explain_with_gpt2(structured_answer, user_query)
-            if explanation and explanation != structured_answer:
-                st.write("### 🤖 GPT-2 Explanation")
-                st.write(explanation)
         except Exception as e:
-            st.error(f"Error generating AI answer: {e}")
+            st.error(f"Error generating answer: {e}")
