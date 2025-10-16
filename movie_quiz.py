@@ -93,10 +93,8 @@ scenario = st.radio(
         "11 – Model Evaluation (Feature Importance)",
         "12 – Feature Hypothesis Testing",
         "13 – Semantic Genre & Recommendations (Deep Learning / NLP)",
-        "14 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)"
-        
-                
-                
+        "14 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)",
+        "15 – Psycho 1960 Film Quiz (Hugging Face Model)"
     ]
 )
 
@@ -1517,3 +1515,55 @@ This scenario allows you to ask **natural-language questions** about my personal
             st.dataframe(filtered_sorted)
         else:
             st.info("No matching films found. Try a different director surname or genre keyword.")
+
+
+if scenario == "15 – Psycho 1960 Film Quiz (Hugging Face Model)":
+    import streamlit as st
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+
+    st.header("🎬 Psycho 1960 Quiz Bot")
+
+    # --- Explanation for users ---
+    st.markdown("""
+    ### About This Psycho 1960 Quiz Bot
+    This AI model was **trained and fine-tuned locally** using **LoRA (Low-Rank Adaptation)** on top of TinyLlama 1.1B Chat.
+    
+    - **Dataset:** Custom prompts and answers about the 1960 film *Psycho*
+    - **Training:** CPU-friendly settings, small batch size, short block size, 3 epochs
+    - **Goal:** Provide short, concise answers about the film
+    - **Deployment:** Model loaded directly from Hugging Face (`antfr99/tinylama-psychofilm`)
+    """)
+
+    # --- Load Hugging Face model (cached for speed) ---
+    @st.cache_resource(show_spinner=True)
+    def load_model():
+        MODEL_HF = "antfr99/tinylama-psychofilm"
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_HF)
+        tokenizer.pad_token = tokenizer.eos_token
+        model = AutoModelForCausalLM.from_pretrained(MODEL_HF, device_map="auto")
+        model.eval()
+        return tokenizer, model
+
+    tokenizer, model = load_model()
+
+    # --- User question input ---
+    question = st.text_input("Ask a question about the 1960 film Psycho:")
+    if question:
+        prompt = f"### Question:\n{question}\n\n### Answer (one short sentence only):"
+        inputs = tokenizer(prompt, return_tensors="pt")
+
+        with torch.no_grad():
+            output_ids = model.generate(
+                **inputs,
+                max_new_tokens=50,
+                do_sample=False,
+                pad_token_id=tokenizer.eos_token_id,
+                eos_token_id=tokenizer.eos_token_id,
+            )
+
+        # Decode and clean the answer
+        answer = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+        answer = answer.replace(prompt, "").strip().split("\n")[0]
+
+        st.success(f"🎬 Answer: {answer}")
