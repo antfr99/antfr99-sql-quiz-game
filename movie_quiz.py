@@ -1516,7 +1516,6 @@ This scenario allows you to ask **natural-language questions** about my personal
         else:
             st.info("No matching films found. Try a different director surname or genre keyword.")
 
-
 if scenario == "15 – Psycho 1960 Film Quiz (Hugging Face Model)":
     import streamlit as st
     import torch
@@ -1527,21 +1526,28 @@ if scenario == "15 – Psycho 1960 Film Quiz (Hugging Face Model)":
     # --- Explanation for users ---
     st.markdown("""
     ### About This Psycho 1960 Quiz Bot
+
     This AI model was **trained and fine-tuned locally** using **LoRA (Low-Rank Adaptation)** on top of TinyLlama 1.1B Chat.
-    
-    - **Dataset:** Custom prompts and answers about the 1960 film *Psycho*
-    - **Training:** CPU-friendly settings, small batch size, short block size, 3 epochs
-    - **Goal:** Provide short, concise answers about the film
-    - **Deployment:** Model loaded directly from Hugging Face (`antfr99/tinylama-psychofilm`)
+
+    - **Dataset:** Custom prompts and answers about the 1960 film *Psycho*  
+    - **Training:** CPU-friendly settings, small batch size, short block size, 3 epochs — 
+      This is a TinyLlama GPT-based causal language model configured to understand prompts and completions specifically about the film.  
+    - **Goal:** Provide answers informed by the content of the film (responses may not always be concise; future training could improve answer quality)  
+    - **Deployment:** Model loaded directly from Hugging Face (`antfr99/tinylama-psychofilm`)  
+    - **Version 1:** This is the first version of the trained model. It may occasionally **hallucinate answers**, so use responses as guidance rather than absolute fact.
     """)
 
     # --- Load Hugging Face model (cached for speed) ---
     @st.cache_resource(show_spinner=True)
     def load_model():
         MODEL_HF = "antfr99/tinylama-psychofilm"
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_HF)
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_HF, trust_remote_code=True)
         tokenizer.pad_token = tokenizer.eos_token
-        model = AutoModelForCausalLM.from_pretrained(MODEL_HF, device_map="auto")
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_HF,
+            device_map="auto",
+            trust_remote_code=True
+        )
         model.eval()
         return tokenizer, model
 
@@ -1567,3 +1573,4 @@ if scenario == "15 – Psycho 1960 Film Quiz (Hugging Face Model)":
         answer = answer.replace(prompt, "").strip().split("\n")[0]
 
         st.success(f"🎬 Answer: {answer}")
+
