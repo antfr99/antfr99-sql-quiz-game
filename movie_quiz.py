@@ -22,7 +22,7 @@ st.set_page_config(
 
 st.title("IMDb/SQL/PYTHON Data Project 🎬")
 st.write("""
-This is a film/data project that integrates several Python libraries, including Pandas, PandasQL, NumPy, Streamlit, Scikit-learn, SciPy, TextBlob, Matplotlib, Seaborn, NetworkX and Sentence-Transformers. It also incorporates SQL, OMDb API, AI, GitHub, and IMDb.
+This is a film/data project that integrates several Python libraries, including Pandas, PandasQL, NumPy, Streamlit, Scikit-learn, SciPy, TextBlob, Matplotlib, Seaborn, Torch, NetworkX and Sentence-Transformers. It also incorporates SQL, Hugging Face OMDb API, AI, GitHub, and IMDb.
 """)
 
 # --- Load Excel files ---
@@ -94,7 +94,7 @@ scenario = st.radio(
         "12 – Feature Hypothesis Testing",
         "13 – Semantic Genre & Recommendations (Deep Learning / NLP)",
         "14 – Live Ratings Monitor (MLOps + CI/CD + Monitoring)",
-        "15 – Psycho 1960 Film Quiz (Hugging Face Model)"
+        "15 – Psycho 1960 Film (Trained AI Model)"
     ]
 )
 
@@ -1516,61 +1516,68 @@ This scenario allows you to ask **natural-language questions** about my personal
         else:
             st.info("No matching films found. Try a different director surname or genre keyword.")
 
-if scenario == "15 – Psycho 1960 Film Quiz (Hugging Face Model)":
+
+if scenario == "15 – Psycho 1960 Film (Trained AI Model)":
     import streamlit as st
     import torch
     from transformers import AutoTokenizer, AutoModelForCausalLM
 
-    st.header("🎬 Psycho 1960 Quiz Bot")
+    st.header("🎬 Psycho 1960 - Trained AI Model")
 
     # --- Explanation for users ---
     st.markdown("""
-    ### About This Psycho 1960 Quiz Bot
+    ### About This Psycho 1960 Trained AI Model
 
     This AI model was **trained and fine-tuned locally** using **LoRA (Low-Rank Adaptation)** on top of TinyLlama 1.1B Chat.
 
     - **Dataset:** Custom prompts and answers about the 1960 film *Psycho*  
-    - **Training:** CPU-friendly settings, small batch size, short block size, 3 epochs — 
+    - **Training:** CPU-friendly settings, small batch size, short block size, 3 epochs — trained locally as a small experimental project to explore how LoRA fine-tuning can be done on a personal computer.  
       This is a TinyLlama GPT-based causal language model configured to understand prompts and completions specifically about the film.  
-    - **Goal:** Provide answers informed by the content of the film (responses may not always be concise; future training could improve answer quality)  
+    - **Goal:** Provide answers informed by the content of the film (responses may not always be concise; future fine-tuning could improve quality)  
     - **Deployment:** Model loaded directly from Hugging Face (`antfr99/tinylama-psychofilm`)  
     - **Version 1:** This is the first version of the trained model. It may occasionally **hallucinate answers**, so use responses as guidance rather than absolute fact.
     """)
 
-    # --- Load Hugging Face model (cached for speed) ---
+    # --- Load Hugging Face model safely (cached) ---
     @st.cache_resource(show_spinner=True)
-    def load_model():
+    def load_model_safe():
         MODEL_HF = "antfr99/tinylama-psychofilm"
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_HF, trust_remote_code=True)
-        tokenizer.pad_token = tokenizer.eos_token
-        model = AutoModelForCausalLM.from_pretrained(
-            MODEL_HF,
-            device_map="auto",
-            trust_remote_code=True
-        )
-        model.eval()
-        return tokenizer, model
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(MODEL_HF, trust_remote_code=True)
+            tokenizer.pad_token = tokenizer.eos_token
+            model = AutoModelForCausalLM.from_pretrained(
+                MODEL_HF,
+                device_map="auto",
+                trust_remote_code=True
+            )
+            model.eval()
+            return tokenizer, model
+        except Exception as e:
+            st.error(f"⚠️ Failed to load the model: {e}")
+            return None, None
 
-    tokenizer, model = load_model()
+    tokenizer, model = load_model_safe()
 
     # --- User question input ---
-    question = st.text_input("Ask a question about the 1960 film Psycho:")
-    if question:
-        prompt = f"### Question:\n{question}\n\n### Answer (one short sentence only):"
-        inputs = tokenizer(prompt, return_tensors="pt")
+    if tokenizer is not None and model is not None:
+        question = st.text_input("Ask a question about the 1960 film Psycho:")
+        if question:
+            prompt = f"### Question:\n{question}\n\n### Answer (one short sentence only):"
+            inputs = tokenizer(prompt, return_tensors="pt")
 
-        with torch.no_grad():
-            output_ids = model.generate(
-                **inputs,
-                max_new_tokens=50,
-                do_sample=False,
-                pad_token_id=tokenizer.eos_token_id,
-                eos_token_id=tokenizer.eos_token_id,
-            )
+            with torch.no_grad():
+                output_ids = model.generate(
+                    **inputs,
+                    max_new_tokens=50,
+                    do_sample=False,
+                    pad_token_id=tokenizer.eos_token_id,
+                    eos_token_id=tokenizer.eos_token_id,
+                )
 
-        # Decode and clean the answer
-        answer = tokenizer.decode(output_ids[0], skip_special_tokens=True)
-        answer = answer.replace(prompt, "").strip().split("\n")[0]
+            # Decode and clean the answer
+            answer = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+            answer = answer.replace(prompt, "").strip().split("\n")[0]
 
-        st.success(f"🎬 Answer: {answer}")
-
+            st.success(f"🎬 Answer: {answer}")
+    else:
+        st.warning("The Psycho 1960 Quiz Bot is currently unavailable due to model loading issues.")
